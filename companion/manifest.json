@@ -1,0 +1,28 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
+	"id": "screensaver",
+	"name": "screensaver",
+	"shortname": "Screensaver",
+	"description": "Quote-of-the-day screensaver with word-by-word reveal after idle timeout",
+	"version": "0.3.0",
+	"license": "MIT",
+	"repository": "git+https://github.com/Modest-Tools/companion-module-screensaver.git",
+	"bugs": "https://github.com/Modest-Tools/companion-module-screensaver/issues",
+	"maintainers": [
+		{
+			"name": "Bryan",
+			"email": "bryanatarama@gmail.com"
+		}
+	],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "2.0.4",
+		"entrypoint": "../dist/main.js"
+	},
+	"legacyIds": [],
+	"manufacturer": "Modest",
+	"products": ["Screensaver"],
+	"keywords": ["screensaver", "idle", "quote", "billboard"]
+}
