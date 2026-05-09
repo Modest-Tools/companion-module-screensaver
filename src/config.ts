@@ -2,6 +2,7 @@ import type { SomeCompanionConfigField } from '@companion-module/base'
 
 export type DisplayMode = 'text-vars' | 'text-mosaic' | 'gif-only' | 'text-over-gif'
 export type DeckSize = 'mini' | 'standard' | 'xl' | 'plus'
+export type MosaicLayout = 'row-snap' | 'centered'
 
 export type ModuleConfig = {
 	idleMinutes: number
@@ -26,6 +27,7 @@ export type ModuleConfig = {
 	mosaicAuthorColor: string
 	mosaicBgColor: string
 	mosaicWordRevealMs: number
+	mosaicLayout: MosaicLayout
 	screensaverLibraryPath: string
 	screensaverId: string
 	deckSize: DeckSize
@@ -201,6 +203,17 @@ export function GetConfigFields(ctx: ConfigContext = { availableScreensavers: []
 			min: 0,
 			max: 10000,
 			default: 220,
+		},
+		{
+			type: 'dropdown',
+			id: 'mosaicLayout',
+			label: 'Mosaic layout',
+			width: 6,
+			default: 'row-snap',
+			choices: [
+				{ id: 'row-snap', label: 'Row-snapped (each line fits inside one button row, top-aligned)' },
+				{ id: 'centered', label: 'Centered (free wrap, vertically centered)' },
+			],
 		},
 		{
 			type: 'static-text',

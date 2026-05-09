@@ -87,8 +87,12 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 
 			await this.refreshLibrary()
 			await this.loadTilesFromConfig()
-			await ensureFontsLoaded()
-			this.log('info', 'mosaic fonts loaded')
+			try {
+				await ensureFontsLoaded()
+				this.log('info', 'mosaic fonts loaded')
+			} catch (err) {
+				this.log('warn', `Mosaic fonts failed to load (text-mosaic mode disabled): ${(err as Error).message}`)
+			}
 			this.startTimers()
 			this.updateStatus(InstanceStatus.Ok)
 			this.log('info', 'init complete')
@@ -167,6 +171,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 			mosaicAuthorColor: String(c.mosaicAuthorColor ?? '#9ae6ff'),
 			mosaicBgColor: String(c.mosaicBgColor ?? '#000000'),
 			mosaicWordRevealMs: Number(c.mosaicWordRevealMs ?? 220),
+			mosaicLayout: (c.mosaicLayout as ModuleConfig['mosaicLayout']) ?? 'row-snap',
 			screensaverLibraryPath: String(c.screensaverLibraryPath ?? defaultLibraryPath()),
 			screensaverId: String(c.screensaverId ?? ''),
 			deckSize: (c.deckSize as ModuleConfig['deckSize']) ?? 'standard',
@@ -319,6 +324,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 			textColor: this.config.mosaicTextColor,
 			authorColor: this.config.mosaicAuthorColor,
 			bgColor: bg,
+			layout: this.config.mosaicLayout,
 		})
 	}
 

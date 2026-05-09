@@ -1,5 +1,6 @@
 import * as PImage from 'pureimage'
 import path from 'node:path'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -10,10 +11,19 @@ let fontReady: Promise<void> | null = null
 
 export function ensureFontsLoaded(): Promise<void> {
 	if (fontReady) return fontReady
-	const regularPath = path.join(__dirname, '..', 'assets', 'fonts', 'Roboto-Regular.ttf')
-	const boldPath = path.join(__dirname, '..', 'assets', 'fonts', 'Roboto-Bold.ttf')
-	const regular = PImage.registerFont(regularPath, FONT_FAMILY, 400, 'normal')
-	const bold = PImage.registerFont(boldPath, FONT_FAMILY, 700, 'normal')
+	// Resolve from a candidate list so we work in: dev (src/../assets/fonts/),
+	// bundled module (sibling to main.js — extraFiles flattens), and any tests.
+	const candidates = [
+		path.join(__dirname, 'Roboto-Regular.ttf'), // bundled package layout
+		path.join(__dirname, '..', 'assets', 'fonts', 'Roboto-Regular.ttf'), // dev layout
+	]
+	const dir = candidates.map((p) => path.dirname(p)).find((d) => existsSync(path.join(d, 'Roboto-Regular.ttf')))
+	if (!dir) {
+		fontReady = Promise.reject(new Error('Roboto-Regular.ttf not found in any expected location'))
+		return fontReady
+	}
+	const regular = PImage.registerFont(path.join(dir, 'Roboto-Regular.ttf'), FONT_FAMILY, 400, 'normal')
+	const bold = PImage.registerFont(path.join(dir, 'Roboto-Bold.ttf'), FONT_FAMILY, 700, 'normal')
 	fontReady = Promise.all([regular.load(), bold.load()]).then(() => undefined)
 	return fontReady
 }
@@ -31,6 +41,13 @@ export type MosaicOptions = {
 	authorColor?: string
 	bgColor?: string | null
 	padding?: number
+	/**
+	 * Layout strategy:
+	 * - 'row-snap' (default): each line of text fits entirely inside one button row,
+	 *   text starts at the top row. Most legible across button bezels.
+	 * - 'centered': original behavior — wrap freely, vertically center the block.
+	 */
+	layout?: 'row-snap' | 'centered'
 }
 
 export type MosaicResult = {
@@ -77,25 +94,40 @@ export function renderMosaic(opts: MosaicOptions): MosaicResult {
 	const aShown = authorWords.slice(0, Math.max(0, aReveal)).join(' ')
 	const authorLine = aShown ? `— ${aShown}` : ''
 
-	const layout = layoutText({
-		ctx,
-		quote: qShown,
-		author: authorLine,
-		maxWidth: innerW,
-		maxHeight: innerH,
-	})
+	const layoutMode = opts.layout ?? 'row-snap'
 
-	const totalH = layout.lines.reduce((acc, l) => acc + l.height, 0)
-	let y = padding + Math.max(0, (innerH - totalH) / 2)
-
-	for (const line of layout.lines) {
-		ctx.font = line.font
-		ctx.fillStyle = line.isAuthor ? authorColor : textColor
-		ctx.textBaseline = 'top'
-		const textW = PImage.measureText(ctx, line.text).width
-		const x = padding + Math.max(0, (innerW - textW) / 2)
-		if (line.text) ctx.fillText(line.text, x, y)
-		y += line.height
+	if (layoutMode === 'row-snap') {
+		drawRowSnapped({
+			ctx,
+			quote: qShown,
+			author: authorLine,
+			gridRows,
+			tileWidth,
+			tileHeight,
+			canvasW,
+			padding,
+			textColor,
+			authorColor,
+		})
+	} else {
+		const layout = layoutText({
+			ctx,
+			quote: qShown,
+			author: authorLine,
+			maxWidth: innerW,
+			maxHeight: innerH,
+		})
+		const totalH = layout.lines.reduce((acc, l) => acc + l.height, 0)
+		let y = padding + Math.max(0, (innerH - totalH) / 2)
+		for (const line of layout.lines) {
+			ctx.font = line.font
+			ctx.fillStyle = line.isAuthor ? authorColor : textColor
+			ctx.textBaseline = 'top'
+			const textW = PImage.measureText(ctx, line.text).width
+			const x = padding + Math.max(0, (innerW - textW) / 2)
+			if (line.text) ctx.fillText(line.text, x, y)
+			y += line.height
+		}
 	}
 
 	const tilesBySlot = sliceBitmapToTiles(bitmap, gridCols, gridRows, tileWidth, tileHeight)
@@ -104,6 +136,81 @@ export function renderMosaic(opts: MosaicOptions): MosaicResult {
 
 function splitWords(s: string): string[] {
 	return s.split(/\s+/).filter((w) => w.length > 0)
+}
+
+/**
+ * Row-snapped layout: each line of text fits inside a single button row, so
+ * lines never straddle the bezels between rows of the deck. Top-aligned, with
+ * the author (if present) reserved for the bottom row when the quote needs
+ * fewer rows than are available.
+ */
+function drawRowSnapped(args: {
+	ctx: ReturnType<ReturnType<typeof PImage.make>['getContext']>
+	quote: string
+	author: string
+	gridRows: number
+	tileWidth: number
+	tileHeight: number
+	canvasW: number
+	padding: number
+	textColor: string
+	authorColor: string
+}): void {
+	const { ctx, quote, author, gridRows, tileHeight, canvasW, padding, textColor, authorColor } = args
+	const horizontalPadding = padding
+	const usableWidth = canvasW - horizontalPadding * 2
+	// Reserve last row for the author if there's an author and more than one row.
+	const authorRowReserved = !!author && gridRows > 1
+	const quoteRowsAvailable = authorRowReserved ? gridRows - 1 : gridRows
+
+	// Pick the largest font size where the quote fits in <= quoteRowsAvailable rows
+	// AND each line fits horizontally.
+	let chosen: { fontSize: number; lines: string[] } | null = null
+	for (let fontSize = Math.floor(tileHeight * 0.85); fontSize >= 14; fontSize -= 2) {
+		const font = `${fontSize}pt ${FONT_FAMILY}`
+		ctx.font = font
+		const lines = wrapLine(ctx, quote, usableWidth)
+		if (lines.length <= quoteRowsAvailable) {
+			chosen = { fontSize, lines }
+			break
+		}
+	}
+	if (!chosen) {
+		// Fallback: smallest size, allow overflow
+		ctx.font = `14pt ${FONT_FAMILY}`
+		chosen = { fontSize: 14, lines: wrapLine(ctx, quote, usableWidth).slice(0, quoteRowsAvailable) }
+	}
+
+	// Draw quote: each line vertically centered inside its row.
+	ctx.font = `${chosen.fontSize}pt ${FONT_FAMILY}`
+	ctx.fillStyle = textColor
+	ctx.textBaseline = 'middle'
+	for (let i = 0; i < chosen.lines.length; i++) {
+		const text = chosen.lines[i]
+		const rowTop = i * tileHeight
+		const yMid = rowTop + tileHeight / 2
+		const textW = PImage.measureText(ctx, text).width
+		const x = horizontalPadding + Math.max(0, (usableWidth - textW) / 2)
+		ctx.fillText(text, x, yMid)
+	}
+
+	// Draw author into the last row if reserved.
+	if (authorRowReserved) {
+		// Pick author font size: aim for ~half the tile height
+		let authorFontSize = Math.floor(tileHeight * 0.45)
+		for (; authorFontSize >= 10; authorFontSize -= 1) {
+			ctx.font = `${authorFontSize}pt ${FONT_FAMILY}`
+			if (PImage.measureText(ctx, author).width <= usableWidth) break
+		}
+		ctx.font = `${authorFontSize}pt ${FONT_FAMILY}`
+		ctx.fillStyle = authorColor
+		ctx.textBaseline = 'middle'
+		const rowTop = (gridRows - 1) * tileHeight
+		const yMid = rowTop + tileHeight / 2
+		const textW = PImage.measureText(ctx, author).width
+		const x = horizontalPadding + Math.max(0, (usableWidth - textW) / 2)
+		ctx.fillText(author, x, yMid)
+	}
 }
 
 type Line = { text: string; font: string; height: number; isAuthor: boolean }
