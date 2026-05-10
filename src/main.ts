@@ -126,7 +126,8 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		const gridFromDeck = gridForDeckSize(deckSize)
 		return {
 			idleMinutes: Number(c.idleMinutes ?? 10),
-			targetPage: Number(c.targetPage ?? 1),
+			targetPage: Number(c.targetPage ?? 99),
+			returnPage: Number(c.returnPage ?? 1),
 			screensaverLibraryPath: String(c.screensaverLibraryPath ?? defaultLibraryPath()),
 			screensaverId: String(c.screensaverId ?? ''),
 			deckSize,
@@ -201,10 +202,34 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 				config: this.config,
 				outputPath: opts.outputPath,
 			})
+			const t = this.config.targetPage
+			const r = this.config.returnPage
+			const label = this.label
 			this.log(
 				'info',
-				`Setup file written: ${finalPath}\n` +
-					`In Companion: Settings → Import / Export → Import → drop this file → pick page ${this.config.targetPage}.`,
+				[
+					`Setup file written: ${finalPath}`,
+					``,
+					`Next steps:`,
+					`  1. Companion → Settings → Import / Export → Import → drop this file → pick page ${t}.`,
+					`     Your screensaver page is now installed at page ${t}.`,
+					``,
+					`  2. Add 3 Triggers (Triggers tab → New Trigger) so the deck switches pages automatically:`,
+					``,
+					`     Trigger A — "Screensaver: switch to billboard"`,
+					`       Event: Variable: Variable value changes → variable "${label}: screensaver_active" → equals → "1"`,
+					`       Action: internal → Surface: Set to page → surface = (your deck) → page = ${t}`,
+					``,
+					`     Trigger B — "Screensaver: return to main"`,
+					`       Event: Variable: Variable value changes → variable "${label}: screensaver_active" → equals → "0"`,
+					`       Action: internal → Surface: Set to page → surface = (your deck) → page = ${r}`,
+					``,
+					`     Trigger C — "Screensaver: reset idle on any press"`,
+					`       Event: Button → On any button press`,
+					`       Action: ${label} → Reset idle timer`,
+					``,
+					`  3. After ${this.config.idleMinutes} minutes of inactivity the deck will switch to page ${t} and play the screensaver. Any button press will exit and return to page ${r}.`,
+				].join('\n'),
 			)
 		} catch (err) {
 			this.log('error', `Failed to generate setup file: ${(err as Error).message}`)

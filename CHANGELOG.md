@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1 — 2026-05-10
+
+### Added
+- New `returnPage` config field — the page the deck switches back to when the screensaver exits.
+- The `Generate page setup file` action now emits a fully-prefilled trigger setup checklist in its log output, so users can copy 3 triggers into Companion's Triggers tab without thinking. Includes the actual variable names, page numbers, and connection label.
+
+### Changed
+- Connection settings reorganized into 3 numbered sections (Pages & timing → Library → Advanced) with explanatory static-text headers.
+- Default `targetPage` changed from 1 to 99 — keeps the screensaver page out of the way of users' main pages by default.
+- "About" blurb now spells out the 3-step setup workflow up front.
+- Library section explicitly tells users where to download Marketplace zips and that the file path can be anywhere.
+
+### Notes
+- Auto-trigger embedding (so the user doesn't have to add the 3 triggers manually) is deferred to v0.4.2 once we have a way to reliably target surfaces in trigger actions across multi-deck setups.
+
 ## 0.4.0 — 2026-05-10
 
 ### Removed

@@ -25,38 +25,29 @@ Until this lands in Companion's official store, install it as a local package:
 
 ### 2. Add the connection
 
-**Connections → Add Connection → Modest: Screensaver**.
+**Connections → Add Connection → Modest: Screensaver**. The settings page is grouped into three numbered sections — fill them top to bottom:
 
-Configure:
-- **Idle minutes before activation** — how long with no input before the screensaver kicks in.
-- **Target billboard page** — which Companion page to render the screensaver on.
-- **Library folder path** — where installed screensavers are stored. Defaults to `~/Documents/CompanionScreensavers`.
-- **Deck size** — Mini / Standard / XL / Plus. Used to pick the right tile resolution.
-- **Active screensaver** — dropdown of screensavers in your library. Empty until you install one.
+1. **Pages & timing**: idle minutes, screensaver page (default 99 — kept out of the way), return page (where to switch back to when the screensaver exits).
+2. **Screensaver library**: folder path (default `~/Documents/CompanionScreensavers`, auto-created), deck size, and the active screensaver dropdown (empty until you install one).
+3. **Advanced**: animation FPS, legacy raw-folder override.
 
 ### 3. Install a screensaver from the Elgato Marketplace
 
-1. Download a screensaver `.zip` from [marketplace.elgato.com](https://marketplace.elgato.com) (filter for screensavers).
-2. Trigger the **Install screensaver from zip** action with the path to the `.zip`.
+1. Download a screensaver `.zip` from [marketplace.elgato.com](https://marketplace.elgato.com) (Stream Deck → Screensavers). Save it anywhere — `~/Downloads` is fine.
+2. Trigger the **Install screensaver from zip** action with the path to the `.zip`. The module unpacks it into your library folder.
 3. Open the connection settings — your screensaver appears in the **Active screensaver** dropdown. Pick it.
 
-### 4. Generate the billboard page
+### 4. Generate the billboard page + triggers
 
-Use the **Generate page setup file** action once. It writes `~/Downloads/screensaver-setup.companionconfig`. Import it via **Settings → Import / Export → Import** and pick a target page. All the buttons appear pre-wired — each cell shows its corresponding screensaver tile via the `Screensaver tile` feedback, and presses reset the idle timer.
+Run the **Generate page setup file** action once. It does two things:
 
-### 5. (Recommended) Wire global idle reset
+- Writes `~/Downloads/screensaver-setup.companionconfig`. Import it via **Settings → Import / Export → Import** and pick the screensaver page from step 2 — all buttons appear pre-wired with the per-slot GIF tile feedback and idle-reset on press.
+- Logs an exact 3-trigger setup checklist to the connection's **View Logs**, with your variable names and page numbers prefilled. Open Companion's **Triggers** tab and create the three triggers it lists. They handle:
+  - Auto-switching to the screensaver page when activating
+  - Switching back to your return page when exiting
+  - Resetting the idle timer on any button press anywhere on the deck
 
-The Companion module SDK doesn't expose a global "any button pressed" event, so by default only presses on the billboard page count as activity. Add a Companion **Trigger** to fix that:
-
-- Triggers → New Trigger → **On any button press** → Action: `Modest: Screensaver — Reset idle timer`
-
-Now presses on every surface reset the idle counter.
-
-### 6. (Recommended) Auto-switch to the billboard page
-
-Modules can't directly drive page navigation. Add a second Trigger:
-
-- **Variable changes** → `screensaver:screensaver_active` becomes `1` → Action: `internal — Set surface page` → set your surfaces to the billboard page.
+After that, idle for the configured timeout and the deck takes over with the screensaver. Tap any button to exit and return to your main page.
 
 ## Actions
 

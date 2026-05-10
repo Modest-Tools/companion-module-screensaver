@@ -8,7 +8,8 @@ Plays Elgato Marketplace screensavers across your Stream Deck after a configurab
 2. Set **Idle minutes**, **Target page**, **Library folder path**, and **Deck size**.
 3. Trigger the **Install screensaver from zip** action with the path to a `.zip` from [Elgato Marketplace](https://marketplace.elgato.com).
 4. In the connection settings, pick the screensaver from the **Active screensaver** dropdown.
-5. Trigger the **Generate page setup file** action and import the resulting `.companionconfig` to install the billboard page.
+5. Trigger the **Generate page setup file** action — its log output gives you the exact 3 triggers to add (with your page numbers prefilled) so the deck auto-switches to the screensaver and returns when you tap a button.
+6. Import the resulting `.companionconfig` via Settings → Import / Export → Import → pick the page from step 2.
 
 ## Recommended triggers
 
