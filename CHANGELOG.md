@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.2 — 2026-05-10
+
+### Fixed
+- **Master-format screensavers were saturating Companion's IPC pipe and timing out RPC calls** (config-fields fetches, action invocations) because each tile shipped at native master resolution — for a 1920×1080 master on a 5×3 grid that's 384×360 RGBA per tile (552 KB) × 15 tiles × 15 fps ≈ 120 MB/sec. Tiles are now downsampled to a max long-edge of 96 px (≈ Stream Deck button native pixels) during slicing, dropping per-frame data ~16×.
+
+## 0.5.1 — 2026-05-10
+
+### Fixed
+- v0.5.0 packaged `main.js` but not `libwebp.wasm`, so `loadWebpMaster` threw `ENOENT: no such file or directory, open '<module>/libwebp.wasm'` at runtime. Added `build-config.cjs` with an `extraFiles` entry so `companion-module-build` ships the WASM file alongside the bundle.
+
+## 0.5.0 — 2026-05-10
+
+### Added
+- **Master-format screensaver support.** Elgato now ships some Marketplace screensavers as a single full-deck animated `.webp` file (e.g. "Matrix Code") instead of pre-tiled per-button GIFs. The library scanner now recognises these as a `master` format, the auto-installer accepts them, and the renderer slices each animation frame into per-button tiles at runtime. One master file works for any deck size — the slicing math just adjusts to the configured grid. Decoding via `node-webpmux` (pure JS+WASM, no native deps).
+
+### Changed
+- `installedScreensaver` data shape now carries `format: 'tiles' | 'master'` plus a `masterFiles[]` list. The active-screensaver dropdown still shows both formats interchangeably; format affects only the rendering path.
+
+### Notes
+- For animations with hundreds of frames (Matrix Code is 1532 frames, ~50s), the renderer decodes one frame at a time on the tile-tick interval rather than pre-decoding the whole loop, keeping memory bounded to ~1 frame's worth of pixel data plus the sliced tile cache.
+
 ## 0.4.7 — 2026-05-10
 
 ### Fixed

@@ -11,6 +11,7 @@ import { UpdateFeedbacks, type FeedbacksSchema } from './feedbacks.js'
 import { UpdatePresets } from './presets.js'
 import { IdleTracker } from './idleTracker.js'
 import { loadTileFolder, tileFrame, type TileSet } from './screensaverImage.js'
+import { loadWebpMaster, frameIndexAtTime, decodeAndSliceFrame, type WebpMasterDeck } from './webpMaster.js'
 import { generateSetupFile } from './setupFile.js'
 import {
 	scanLibrary,
@@ -65,6 +66,10 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 	private tileInterval: NodeJS.Timeout | null = null
 	private incomingScanInterval: NodeJS.Timeout | null = null
 	private tiles: TileSet | null = null
+	private master: WebpMasterDeck | null = null
+	private masterTiles: Map<number, Buffer> | null = null
+	private masterFrameIdx = -1
+	private masterDecodeInFlight = false
 	private tileLoadStartedAt = 0
 	private library: InstalledScreensaver[] = []
 	private failedAutoInstalls = new Set<string>()
@@ -251,20 +256,6 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		}
 	}
 
-	private resolveTileFolder(): string | null {
-		const legacy = this.config.tileFolder?.trim()
-		if (legacy) return legacy
-		const id = this.config.screensaverId?.trim()
-		if (!id) return null
-		const ss = this.library.find((s) => s.id === id)
-		if (!ss) return null
-		const { folder, chosenSize } = pickResolutionFolder(ss, this.config.deckSize)
-		if (folder && chosenSize !== this.config.deckSize) {
-			this.log('info', `No "${this.config.deckSize}" tiles in "${ss.name}"; using "${chosenSize}" instead.`)
-		}
-		return folder
-	}
-
 	async installScreensaverZip(opts: { zipPath: string; displayName?: string }): Promise<void> {
 		const libPath = this.getLibraryPath()
 		const expandedZip = expandHome(opts.zipPath)
@@ -310,12 +301,58 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		}
 	}
 
+	private resolveActiveScreensaver(): InstalledScreensaver | null {
+		const id = this.config.screensaverId?.trim()
+		if (!id) return null
+		return this.library.find((s) => s.id === id) ?? null
+	}
+
 	private async loadTilesFromConfig(): Promise<void> {
-		const folder = this.resolveTileFolder()
-		if (!folder) {
-			this.tiles = null
+		this.tiles = null
+		this.master = null
+		this.masterTiles = null
+		this.masterFrameIdx = -1
+
+		const legacy = this.config.tileFolder?.trim()
+		if (legacy) {
+			await this.loadTilesFolderInto(legacy)
 			return
 		}
+
+		const ss = this.resolveActiveScreensaver()
+		if (!ss) return
+
+		if (ss.format === 'master') {
+			const masterPath = ss.masterFiles[0]
+			if (!masterPath) {
+				this.log('warn', `Active screensaver "${ss.name}" reports master format but has no .webp file`)
+				return
+			}
+			try {
+				this.log('info', `Loading master-format screensaver "${ss.name}" from ${masterPath}`)
+				this.master = await loadWebpMaster(masterPath, this.config.gridCols, this.config.gridRows)
+				this.tileLoadStartedAt = Date.now()
+				this.log(
+					'info',
+					`Master ready: ${this.master.width}×${this.master.height}, ${this.master.frames.length} frames, ${this.master.totalDuration}ms loop. Tiles ${this.master.tileWidth}×${this.master.tileHeight} on a ${this.config.gridCols}×${this.config.gridRows} grid.`,
+				)
+				void this.refreshMasterFrame()
+			} catch (err) {
+				this.log('warn', `Failed to load master screensaver: ${(err as Error).message}`)
+				this.master = null
+			}
+			return
+		}
+
+		const { folder, chosenSize } = pickResolutionFolder(ss, this.config.deckSize)
+		if (!folder) return
+		if (chosenSize !== this.config.deckSize) {
+			this.log('info', `No "${this.config.deckSize}" tiles in "${ss.name}"; using "${chosenSize}" instead.`)
+		}
+		await this.loadTilesFolderInto(folder)
+	}
+
+	private async loadTilesFolderInto(folder: string): Promise<void> {
 		try {
 			this.log('info', `Loading screensaver tiles from ${folder}`)
 			this.tiles = await loadTileFolder(folder, this.config.gridCols, this.config.gridRows)
@@ -324,6 +361,23 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		} catch (err) {
 			this.log('warn', `Failed to load tile folder: ${(err as Error).message}`)
 			this.tiles = null
+		}
+	}
+
+	private async refreshMasterFrame(): Promise<void> {
+		if (!this.master || this.masterDecodeInFlight) return
+		const idx = frameIndexAtTime(this.master, Date.now() - this.tileLoadStartedAt)
+		if (idx === this.masterFrameIdx && this.masterTiles) return
+		this.masterDecodeInFlight = true
+		try {
+			const sliced = await decodeAndSliceFrame(this.master, idx)
+			this.masterTiles = sliced
+			this.masterFrameIdx = idx
+			this.checkFeedbacks('screensaver_tile')
+		} catch (err) {
+			this.log('warn', `Master frame decode failed at idx ${idx}: ${(err as Error).message}`)
+		} finally {
+			this.masterDecodeInFlight = false
 		}
 	}
 
@@ -391,6 +445,15 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		imageBufferEncoding: { pixelFormat: 'RGBA' }
 		imageBufferPosition?: { x: number; y: number; width: number; height: number }
 	} | null {
+		if (this.master && this.masterTiles) {
+			const buf = this.masterTiles.get(slot)
+			if (!buf) return null
+			return {
+				imageBuffer: buf,
+				imageBufferEncoding: { pixelFormat: 'RGBA' },
+				imageBufferPosition: { x: 0, y: 0, width: this.master.tileWidth, height: this.master.tileHeight },
+			}
+		}
 		if (!this.tiles) return null
 		const elapsed = Date.now() - this.tileLoadStartedAt
 		const buf = tileFrame(this.tiles, slot, elapsed)
@@ -415,12 +478,19 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 	private startTileTicker(): void {
 		if (this.tileInterval) clearInterval(this.tileInterval)
 		this.tileInterval = null
-		if (!this.tiles) return
 		const fps = Math.max(1, Math.min(30, this.config.tileFps || 15))
 		const periodMs = Math.round(1000 / fps)
-		this.tileInterval = setInterval(() => {
-			this.checkFeedbacks('screensaver_tile')
-		}, periodMs)
+		if (this.master) {
+			this.tileInterval = setInterval(() => {
+				void this.refreshMasterFrame()
+			}, periodMs)
+			return
+		}
+		if (this.tiles) {
+			this.tileInterval = setInterval(() => {
+				this.checkFeedbacks('screensaver_tile')
+			}, periodMs)
+		}
 	}
 
 	private clearAllTimers(): void {

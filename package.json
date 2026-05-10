@@ -1,6 +1,6 @@
 {
 	"name": "companion-module-screensaver",
-	"version": "0.4.7",
+	"version": "0.5.2",
 	"main": "dist/main.js",
 	"type": "module",
 	"scripts": {
@@ -20,6 +20,7 @@
 	"dependencies": {
 		"@companion-module/base": "~2.0.4",
 		"adm-zip": "^0.5.17",
+		"node-webpmux": "^3.2.1",
 		"omggif": "^1.0.10"
 	},
 	"devDependencies": {

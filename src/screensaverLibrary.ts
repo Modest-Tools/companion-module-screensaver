@@ -16,7 +16,10 @@ export type InstalledScreensaver = {
 	id: string // safe identifier (folder name)
 	name: string // display name (folder name, prettified)
 	rootPath: string // absolute path to the screensaver folder
+	format: 'tiles' | 'master'
 	resolutionFolders: Record<DeckSize, string | null>
+	/** When format === 'master', list of `.webp` files found at the folder root. */
+	masterFiles: string[]
 }
 
 /** Default library location: ~/Documents/CompanionScreensavers */
@@ -53,17 +56,48 @@ export async function scanLibrary(libraryPath: string): Promise<InstalledScreens
 		}
 
 		const resolutions = await findResolutionFolders(full)
-		const hasAny = Object.values(resolutions).some((v) => v !== null)
-		if (!hasAny) continue
+		const hasResolutions = Object.values(resolutions).some((v) => v !== null)
+
+		const masterFiles = hasResolutions ? [] : await findMasterWebpFiles(full)
+		if (!hasResolutions && masterFiles.length === 0) continue
 
 		out.push({
 			id: entry,
 			name: prettifyName(entry),
 			rootPath: full,
+			format: hasResolutions ? 'tiles' : 'master',
 			resolutionFolders: resolutions,
+			masterFiles,
 		})
 	}
 	return out.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Find `.webp` files at the screensaver folder root — Elgato's "single master"
+ * format where one full-deck animation is sliced into per-button tiles at
+ * runtime instead of being shipped pre-tiled.
+ */
+async function findMasterWebpFiles(root: string): Promise<string[]> {
+	let entries: string[]
+	try {
+		entries = await readdir(root)
+	} catch {
+		return []
+	}
+	const out: string[] = []
+	for (const e of entries) {
+		if (e.startsWith('.')) continue
+		if (!e.toLowerCase().endsWith('.webp')) continue
+		const full = path.join(root, e)
+		try {
+			const s = await stat(full)
+			if (s.isFile()) out.push(full)
+		} catch {
+			/* ignore */
+		}
+	}
+	return out.sort((a, b) => path.basename(a).localeCompare(path.basename(b)))
 }
 
 /**
@@ -164,7 +198,13 @@ export function isScreensaverZip(zipPath: string): boolean {
 		/(^|\/)(sd ?(mini|standard|xl|plus)|wallpaper gifs)(\/|$)/.test(n),
 	)
 	const hasGifs = lowerNames.some((n) => n.endsWith('.gif'))
-	return hasResolutionFolder && hasGifs
+	if (hasResolutionFolder && hasGifs) return true
+
+	// Master format: one or more `.webp` files at the zip root (or one folder deep)
+	// with no other structural folders. Heuristic: at least one .webp entry whose
+	// path has at most one separator.
+	const hasShallowWebp = lowerNames.some((n) => n.endsWith('.webp') && (n.match(/\//g) ?? []).length <= 1)
+	return hasShallowWebp
 }
 
 /**
