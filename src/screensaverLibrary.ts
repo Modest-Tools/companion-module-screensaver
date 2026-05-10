@@ -148,6 +148,26 @@ export function pickResolutionFolder(
 }
 
 /**
+ * Look at a zip's entry names and decide whether it appears to be an Elgato
+ * screensaver. Used to skip random zips before extraction.
+ */
+export function isScreensaverZip(zipPath: string): boolean {
+	let zip: AdmZip
+	try {
+		zip = new AdmZip(zipPath)
+	} catch {
+		return false
+	}
+	const entries = zip.getEntries()
+	const lowerNames = entries.map((e) => e.entryName.toLowerCase())
+	const hasResolutionFolder = lowerNames.some((n) =>
+		/(^|\/)(sd ?(mini|standard|xl|plus)|wallpaper gifs)(\/|$)/.test(n),
+	)
+	const hasGifs = lowerNames.some((n) => n.endsWith('.gif'))
+	return hasResolutionFolder && hasGifs
+}
+
+/**
  * Install an Elgato screensaver zip into the library. Returns the
  * destination folder name.
  */
@@ -182,7 +202,7 @@ export async function installScreensaverFromZip(
 	return { installedTo: dest, screensaverId: safeName }
 }
 
-function sanitizeFolderName(name: string): string {
+export function sanitizeFolderName(name: string): string {
 	return name.replace(/[\/\\:*?"<>|]/g, '-').trim() || 'screensaver'
 }
 

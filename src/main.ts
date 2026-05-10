@@ -1,3 +1,7 @@
+import path from 'node:path'
+import os from 'node:os'
+import { stat, readdir } from 'node:fs/promises'
+import { readdirSync } from 'node:fs'
 import { InstanceBase, InstanceStatus, type SomeCompanionConfigField } from '@companion-module/base'
 import { GetConfigFields, type ModuleConfig } from './config.js'
 import { UpdateVariableDefinitions, type VariablesSchema } from './variables.js'
@@ -14,6 +18,8 @@ import {
 	pickResolutionFolder,
 	defaultLibraryPath,
 	ensureLibraryExists,
+	sanitizeFolderName,
+	isScreensaverZip,
 	type InstalledScreensaver,
 } from './screensaverLibrary.js'
 
@@ -26,6 +32,13 @@ export type ModuleSchema = {
 }
 
 export { UpgradeScripts }
+
+function expandHome(p: string): string {
+	if (!p) return p
+	if (p === '~') return os.homedir()
+	if (p.startsWith('~/')) return path.join(os.homedir(), p.slice(2))
+	return p
+}
 
 function gridForDeckSize(size: 'mini' | 'standard' | 'xl' | 'plus'): { cols: number; rows: number } {
 	switch (size) {
@@ -50,9 +63,12 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 	private idleCheckInterval: NodeJS.Timeout | null = null
 	private heartbeatInterval: NodeJS.Timeout | null = null
 	private tileInterval: NodeJS.Timeout | null = null
+	private incomingScanInterval: NodeJS.Timeout | null = null
 	private tiles: TileSet | null = null
 	private tileLoadStartedAt = 0
 	private library: InstalledScreensaver[] = []
+	private failedAutoInstalls = new Set<string>()
+	private skipNonScreensaverZips = new Set<string>()
 
 	constructor(internal: unknown) {
 		super(internal)
@@ -71,6 +87,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 			this.resetVariables()
 
 			await this.refreshLibrary()
+			await this.scanIncomingZips()
 			await this.loadTilesFromConfig()
 			this.startTimers()
 			this.updateStatus(InstanceStatus.Ok)
@@ -94,6 +111,12 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		this.resetVariables({ keepActive: true })
 		if (this.config.screensaverLibraryPath !== old?.screensaverLibraryPath) {
 			await this.refreshLibrary()
+		}
+		if (this.config.incomingZipFolder !== old?.incomingZipFolder) {
+			this.failedAutoInstalls.clear()
+			this.skipNonScreensaverZips.clear()
+			await this.scanIncomingZips()
+			this.updateActions()
 		}
 		const tileSourceChanged =
 			this.config.tileFolder !== old?.tileFolder ||
@@ -128,7 +151,9 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 			idleMinutes: Number(c.idleMinutes ?? 10),
 			targetPage: Number(c.targetPage ?? 99),
 			returnPage: Number(c.returnPage ?? 1),
+			surfaceIds: String(c.surfaceIds ?? ''),
 			screensaverLibraryPath: String(c.screensaverLibraryPath ?? defaultLibraryPath()),
+			incomingZipFolder: String(c.incomingZipFolder ?? '~/Downloads'),
 			screensaverId: String(c.screensaverId ?? ''),
 			deckSize,
 			gridCols: Number(c.gridCols ?? gridFromDeck.cols),
@@ -138,8 +163,84 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		}
 	}
 
+	private getIncomingFolder(): string {
+		return expandHome(this.config?.incomingZipFolder?.trim() || '~/Downloads')
+	}
+
+	private getLibraryPath(): string {
+		return expandHome(this.config?.screensaverLibraryPath?.trim() || defaultLibraryPath())
+	}
+
+	listIncomingZips(): string[] {
+		const folder = this.getIncomingFolder()
+		try {
+			return readdirSync(folder)
+				.filter((name) => name.toLowerCase().endsWith('.zip') && !name.startsWith('.'))
+				.sort()
+		} catch {
+			return []
+		}
+	}
+
+	resolveIncomingZip(filename: string): string {
+		return path.join(this.getIncomingFolder(), filename)
+	}
+
+	private async scanIncomingZips(): Promise<void> {
+		const folder = this.getIncomingFolder()
+		const libPath = this.getLibraryPath()
+
+		if (path.resolve(folder) === path.resolve(libPath)) {
+			this.log(
+				'warn',
+				`Auto-install disabled: incoming folder ("${folder}") is the same as the library folder. Set them to different paths to re-enable.`,
+			)
+			return
+		}
+
+		let names: string[]
+		try {
+			names = (await readdir(folder)).filter((n) => n.toLowerCase().endsWith('.zip') && !n.startsWith('.'))
+		} catch {
+			return
+		}
+
+		const installedIds = new Set(this.library.map((s) => s.id))
+		let newlyInstalled = 0
+
+		for (const name of names) {
+			const full = path.join(folder, name)
+			const baseName = path.basename(name, path.extname(name))
+			const safeName = sanitizeFolderName(baseName)
+			if (installedIds.has(safeName)) continue
+			if (this.failedAutoInstalls.has(full)) continue
+			if (this.skipNonScreensaverZips.has(full)) continue
+
+			if (!isScreensaverZip(full)) {
+				this.skipNonScreensaverZips.add(full)
+				this.log('debug', `Skipping ${name}: doesn't look like an Elgato screensaver zip.`)
+				continue
+			}
+
+			this.log('info', `Auto-installing zip from incoming folder: ${name}`)
+			try {
+				const result = await installScreensaverFromZip(full, libPath, undefined)
+				this.log('info', `✓ Auto-installed "${result.screensaverId}" from ${name}`)
+				newlyInstalled++
+			} catch (err) {
+				this.log('warn', `Auto-install failed for ${name}: ${(err as Error).message}`)
+				this.failedAutoInstalls.add(full)
+			}
+		}
+
+		if (newlyInstalled > 0) {
+			await this.refreshLibrary()
+			this.updateActions()
+		}
+	}
+
 	private async refreshLibrary(): Promise<void> {
-		const libPath = this.config.screensaverLibraryPath?.trim() || defaultLibraryPath()
+		const libPath = this.getLibraryPath()
 		try {
 			await ensureLibraryExists(libPath)
 			this.library = await scanLibrary(libPath)
@@ -165,13 +266,47 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 	}
 
 	async installScreensaverZip(opts: { zipPath: string; displayName?: string }): Promise<void> {
-		const libPath = this.config.screensaverLibraryPath?.trim() || defaultLibraryPath()
+		const libPath = this.getLibraryPath()
+		const expandedZip = expandHome(opts.zipPath)
+		const ts = new Date().toISOString().slice(11, 19)
+
+		this.log('info', `Installing screensaver from ${expandedZip} → ${libPath}`)
+		this.setVariableValues({ last_install_result: `Installing ${path.basename(expandedZip)}…`, last_install_at: ts })
+		this.updateStatus(InstanceStatus.Connecting, 'Installing zip…')
+
 		try {
-			const result = await installScreensaverFromZip(opts.zipPath, libPath, opts.displayName)
-			this.log('info', `Installed screensaver "${result.screensaverId}" to ${result.installedTo}`)
+			let st
+			try {
+				st = await stat(expandedZip)
+			} catch {
+				const msg = `Zip not found at "${expandedZip}". Use ~/ for your home folder or paste the absolute path to a .zip file.`
+				this.log('error', msg)
+				this.setVariableValues({ last_install_result: `✗ ${msg}`, last_install_at: ts })
+				this.updateStatus(InstanceStatus.Ok)
+				return
+			}
+			if (st.isDirectory()) {
+				const msg = `"${expandedZip}" is a folder, not a .zip file. Pick a specific file (or drop the .zip into the connection's "Incoming zip folder" for auto-install).`
+				this.log('error', msg)
+				this.setVariableValues({ last_install_result: `✗ ${msg}`, last_install_at: ts })
+				this.updateStatus(InstanceStatus.Ok)
+				return
+			}
+
+			const result = await installScreensaverFromZip(expandedZip, libPath, opts.displayName)
+			this.log('info', `✓ Installed "${result.screensaverId}" to ${result.installedTo}`)
+			this.setVariableValues({
+				last_install_result: `✓ Installed "${result.screensaverId}"`,
+				last_install_at: ts,
+			})
 			await this.refreshLibrary()
+			this.log('info', `Library now contains ${this.library.length} screensaver(s). Pick yours in the connection's "Active screensaver" dropdown.`)
+			this.updateStatus(InstanceStatus.Ok)
 		} catch (err) {
-			this.log('error', `Failed to install screensaver from zip: ${(err as Error).message}`)
+			const msg = (err as Error).message
+			this.log('error', `Failed to install screensaver from zip: ${msg}`)
+			this.setVariableValues({ last_install_result: `✗ ${msg}`, last_install_at: ts })
+			this.updateStatus(InstanceStatus.Ok)
 		}
 	}
 
@@ -194,7 +329,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 
 	async generateSetupFile(opts: { outputPath: string }): Promise<void> {
 		try {
-			const finalPath = await generateSetupFile({
+			const result = await generateSetupFile({
 				connectionId: this.id,
 				connectionLabel: this.label,
 				connectionVersionId: 'dev',
@@ -205,32 +340,44 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 			const t = this.config.targetPage
 			const r = this.config.returnPage
 			const label = this.label
-			this.log(
-				'info',
-				[
-					`Setup file written: ${finalPath}`,
+			const lines: string[] = [
+				`Setup file written: ${result.finalPath}`,
+				``,
+				`Next step: Companion → Settings → Import / Export → Import → drop this file.`,
+				`The screensaver page will be installed at page ${t}, plus ${result.embeddedTriggers.length} ready-to-go trigger(s):`,
+			]
+			for (const tr of result.embeddedTriggers) lines.push(`  • ${tr.name}`)
+
+			if (result.missingTriggers.length > 0) {
+				lines.push(
 					``,
-					`Next steps:`,
-					`  1. Companion → Settings → Import / Export → Import → drop this file → pick page ${t}.`,
-					`     Your screensaver page is now installed at page ${t}.`,
-					``,
-					`  2. Add 3 Triggers (Triggers tab → New Trigger) so the deck switches pages automatically:`,
-					``,
-					`     Trigger A — "Screensaver: switch to billboard"`,
-					`       Event: Variable: Variable value changes → variable "${label}: screensaver_active" → equals → "1"`,
-					`       Action: internal → Surface: Set to page → surface = (your deck) → page = ${t}`,
-					``,
-					`     Trigger B — "Screensaver: return to main"`,
-					`       Event: Variable: Variable value changes → variable "${label}: screensaver_active" → equals → "0"`,
-					`       Action: internal → Surface: Set to page → surface = (your deck) → page = ${r}`,
-					``,
-					`     Trigger C — "Screensaver: reset idle on any press"`,
-					`       Event: Button → On any button press`,
-					`       Action: ${label} → Reset idle timer`,
-					``,
-					`  3. After ${this.config.idleMinutes} minutes of inactivity the deck will switch to page ${t} and play the screensaver. Any button press will exit and return to page ${r}.`,
-				].join('\n'),
+					`Skipped (no Stream Deck surface IDs in connection config — fill in "Stream Deck surface IDs" and re-run to embed these too):`,
+				)
+				for (const tr of result.missingTriggers) {
+					if (tr.name === 'Screensaver: switch to billboard') {
+						lines.push(
+							`  • ${tr.name}`,
+							`     Event: Variable: Variable value changes → variable "${label}: screensaver_active"`,
+							`     Condition: variable equals "1"`,
+							`     Action: internal → Surface: Set to page → surface = (your deck) → page = ${t}`,
+						)
+					} else if (tr.name === 'Screensaver: return to main') {
+						lines.push(
+							`  • ${tr.name}`,
+							`     Event: Variable: Variable value changes → variable "${label}: screensaver_active"`,
+							`     Condition: variable equals "0"`,
+							`     Action: internal → Surface: Set to page → surface = (your deck) → page = ${r}`,
+						)
+					}
+				}
+			}
+
+			lines.push(
+				``,
+				`After ${this.config.idleMinutes} minutes of inactivity the deck will switch to page ${t} and play the screensaver. Any button press will exit and return to page ${r}.`,
 			)
+
+			this.log('info', lines.join('\n'))
 		} catch (err) {
 			this.log('error', `Failed to generate setup file: ${(err as Error).message}`)
 		}
@@ -259,6 +406,9 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		this.clearAllTimers()
 		this.idleCheckInterval = setInterval(() => this.tickIdleCheck(), 1000)
 		this.heartbeatInterval = setInterval(() => this.tickHeartbeat(), 1000)
+		this.incomingScanInterval = setInterval(() => {
+			void this.scanIncomingZips()
+		}, 30_000)
 		this.startTileTicker()
 	}
 
@@ -277,9 +427,11 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		if (this.idleCheckInterval) clearInterval(this.idleCheckInterval)
 		if (this.heartbeatInterval) clearInterval(this.heartbeatInterval)
 		if (this.tileInterval) clearInterval(this.tileInterval)
+		if (this.incomingScanInterval) clearInterval(this.incomingScanInterval)
 		this.idleCheckInterval = null
 		this.heartbeatInterval = null
 		this.tileInterval = null
+		this.incomingScanInterval = null
 	}
 
 	private tickIdleCheck(): void {
@@ -299,6 +451,8 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		const vals: Record<string, string> = {}
 		if (!opts.keepActive) {
 			vals['screensaver_active'] = '0'
+			vals['last_install_result'] = '(no install yet this session)'
+			vals['last_install_at'] = ''
 		}
 		vals['seconds_since_last_press'] = String(this.idle.secondsSinceLastInput())
 		this.setVariableValues(vals)

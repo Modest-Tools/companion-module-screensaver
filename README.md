@@ -2,7 +2,7 @@
 
 A Bitfocus Companion module that plays **Elgato Stream Deck screensavers** across your deck after an idle period — a pure-JS port of the screensaver feature in Elgato's native Stream Deck app, so any animated screensaver from the [Elgato Marketplace](https://marketplace.elgato.com) works on Companion-controlled decks.
 
-> Status: early. Working on real hardware via Companion's local module import. Submission to the official Companion bundled-modules registry is in flight.
+> Status: early. Working on real hardware via Companion's local module import. Distributed as side-loaded `.tgz` releases — not in the official bundled-modules registry.
 
 ## What it does
 
@@ -16,7 +16,7 @@ A Bitfocus Companion module that plays **Elgato Stream Deck screensavers** acros
 
 ### 1. Install the module
 
-Until this lands in Companion's official store, install it as a local package:
+This module is distributed as a side-loaded package only (it isn't in the Companion bundled-modules registry):
 
 1. Download the latest `.tgz` from [Releases](https://github.com/Modest-Tools/companion-module-screensaver/releases).
 2. In Companion: **Modules → Import module package** → pick the `.tgz`.
@@ -33,19 +33,29 @@ Until this lands in Companion's official store, install it as a local package:
 
 ### 3. Install a screensaver from the Elgato Marketplace
 
-1. Download a screensaver `.zip` from [marketplace.elgato.com](https://marketplace.elgato.com) (Stream Deck → Screensavers). Save it anywhere — `~/Downloads` is fine.
-2. Trigger the **Install screensaver from zip** action with the path to the `.zip`. The module unpacks it into your library folder.
-3. Open the connection settings — your screensaver appears in the **Active screensaver** dropdown. Pick it.
+Module actions in Companion don't appear in their own menu — you run them by binding them to a button (or a trigger) and firing it. For one-shot setup actions like this, the easiest pattern is a temporary "setup" page:
 
-### 4. Generate the billboard page + triggers
+1. Download a screensaver `.zip` from [marketplace.elgato.com](https://marketplace.elgato.com) (Stream Deck → Screensavers). Save it anywhere — `~/Downloads` works (the action expands `~/`).
+2. In Companion: **Buttons** tab → pick any unused button on a temporary page → **Add action** → choose your **Screensaver** connection → pick **Install screensaver from zip**.
+3. Paste the path to the `.zip` (e.g. `~/Downloads/some-screensaver.zip` or the absolute `/Users/you/Downloads/...`) into the action's **Path to .zip file** field. Save the button.
+4. Press the button on your deck (or the soft-press in Companion's UI). Watch the connection's **View Logs** for `Installed screensaver "..."`.
+5. Open the connection settings — your screensaver now appears in the **Active screensaver** dropdown. Pick it.
 
-Run the **Generate page setup file** action once. It does two things:
+You can delete the temporary install button afterward.
 
-- Writes `~/Downloads/screensaver-setup.companionconfig`. Import it via **Settings → Import / Export → Import** and pick the screensaver page from step 2 — all buttons appear pre-wired with the per-slot GIF tile feedback and idle-reset on press.
-- Logs an exact 3-trigger setup checklist to the connection's **View Logs**, with your variable names and page numbers prefilled. Open Companion's **Triggers** tab and create the three triggers it lists. They handle:
-  - Auto-switching to the screensaver page when activating
-  - Switching back to your return page when exiting
-  - Resetting the idle timer on any button press anywhere on the deck
+### 4. Set Stream Deck surface IDs (recommended)
+
+Open **Connections → your Screensaver connection → Edit** and fill in **Stream Deck surface IDs** with the deck(s) you want the screensaver to take over. Find the IDs in **Surfaces** (e.g. `streamdeck:A00SA4442O4IRG`); separate multiple decks with commas. This is optional — but if you set it, the next step embeds ready-made page-switch triggers for those surfaces. If you leave it blank you'll add A and B manually (the README below tells you how).
+
+### 5. Generate the billboard page + triggers
+
+Run the **Generate page setup file** action the same way you ran the install action — bind it to a temporary button and press it. It does both things in one shot:
+
+- Writes `~/Downloads/screensaver-setup.companionconfig`. Import it via **Settings → Import / Export → Import**. The file installs:
+  - The screensaver billboard page at the configured target page (default 99) — all buttons pre-wired with the per-slot GIF tile feedback and idle-reset on press.
+  - The **Reset idle on any press** trigger (always embedded — no surface ID needed).
+  - **If you filled in `Stream Deck surface IDs`:** the **switch to billboard** and **return to main** triggers, with one set-page action per surface, pre-wired to the right pages.
+- Logs the import summary in the connection's **View Logs** — including manual setup steps for any triggers we couldn't embed (only relevant if you skipped step 4).
 
 After that, idle for the configured timeout and the deck takes over with the screensaver. Tap any button to exit and return to your main page.
 

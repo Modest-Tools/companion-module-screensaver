@@ -6,7 +6,9 @@ export type ModuleConfig = {
 	idleMinutes: number
 	targetPage: number
 	returnPage: number
+	surfaceIds: string
 	screensaverLibraryPath: string
+	incomingZipFolder: string
 	screensaverId: string
 	deckSize: DeckSize
 	gridCols: number
@@ -69,6 +71,15 @@ export function GetConfigFields(ctx: ConfigContext = { availableScreensavers: []
 			default: 1,
 		},
 		{
+			type: 'textinput',
+			id: 'surfaceIds',
+			label: 'Stream Deck surface IDs (comma-separated)',
+			width: 12,
+			default: '',
+			tooltip:
+				'Find these in Companion → Surfaces (e.g. "streamdeck:A00SA4442O4IRG"). When set, the generated .companionconfig will include ready-to-go page-switch triggers for each listed surface. Leave blank to add those triggers manually.',
+		},
+		{
 			type: 'static-text',
 			id: 'libraryHeader',
 			label: '2. Screensaver library',
@@ -83,6 +94,15 @@ export function GetConfigFields(ctx: ConfigContext = { availableScreensavers: []
 			width: 8,
 			default: '',
 			tooltip: 'Default: ~/Documents/CompanionScreensavers',
+		},
+		{
+			type: 'textinput',
+			id: 'incomingZipFolder',
+			label: 'Incoming zip folder (auto-installed in the background)',
+			width: 12,
+			default: '~/Downloads',
+			tooltip:
+				'Drop Elgato Marketplace .zip files here and they will be auto-installed within ~30s. The "Install screensaver from zip" action also pulls its dropdown of choices from this folder.',
 		},
 		{
 			type: 'dropdown',

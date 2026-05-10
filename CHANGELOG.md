@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.4.7 — 2026-05-10
+
+### Fixed
+- **Critical: `~/` was not being expanded for the library folder path field**, so a library path like `~/Documents/CompanionScreensavers` would extract zips into a literal `~/` subdirectory of Companion's module folder instead of the user's home — silently filling the module's install dir with up to gigabytes of bogus extractions. Path expansion is now centralised through one helper that runs everywhere a user-supplied path is used (library, incoming, manual zipPath).
+
+## 0.4.6 — 2026-05-10
+
+### Fixed
+- **Critical: auto-installer would extract every `.zip` in the incoming folder**, including non-screensaver zips, and re-extract the same zips every 30 seconds because the resulting folders didn't match the library's screensaver-shape check. The auto-installer now (a) inspects each zip's entries and skips anything that doesn't look like an Elgato screensaver, and (b) remembers skipped/failed zips for the lifetime of the connection so they're not retried until the connection restarts or the incoming folder changes.
+- **Auto-install is now refused when the library folder and the incoming folder are the same path** — extracting screensavers into the same directory we're scanning for new zips causes feedback loops and pollutes whatever folder the user picked. A clear warning is logged in that case.
+
+## 0.4.5 — 2026-05-10
+
+### Added
+- **Incoming zip folder + auto-install.** New `incomingZipFolder` config field (default `~/Downloads`). The module scans this folder every ~30s and auto-installs any new `.zip` it hasn't seen, so dropping a file in your Downloads folder is enough — no button-press needed.
+- **Dropdown picker on the manual install action.** "Install screensaver from zip" now has a dropdown listing every `.zip` in the incoming folder; pick one and press the button instead of typing a path. The textinput is still there as a fallback for files outside the watch folder.
+
+### Changed
+- Manual install action now refuses directory paths up front with a clear message ("X is a folder, not a .zip file") instead of letting AdmZip throw `EISDIR` at extract-time.
+
+## 0.4.4 — 2026-05-10
+
+### Added
+- "Install screensaver from zip" now reports progress: logs the resolved zip + library paths the moment it starts, validates the zip exists with a clear error if not, and on success logs how many screensavers are now in the library.
+- Two new variables — `last_install_result` and `last_install_at` — surface the most recent install outcome so you can put it on a button (text expression `$(Screensaver:last_install_result)`) instead of digging through Companion's logs.
+- The connection's status badge briefly switches to "Installing zip…" while the action runs.
+
+## 0.4.3 — 2026-05-10
+
+### Added
+- New `surfaceIds` config field — comma-separated list of Stream Deck surface IDs (e.g. `streamdeck:A00SA4442O4IRG`). When filled, the generated `.companionconfig` file now embeds two ready-to-go page-switch triggers — one to switch the listed surface(s) to the screensaver page when activation fires, and one to return to the main page when it exits. Multi-surface setups get one set-page action per surface.
+- The "reset idle on any press" trigger is now embedded in the generated file unconditionally — no surface ID needed for it, since it just calls back into the connection.
+
+### Changed
+- The generated `.companionconfig` now uses Companion's `type: "full"` export shape so it can carry both the screensaver page and the triggers in a single import. Previously it was `type: "page"` (which can't include triggers) and the user had to add 3 triggers manually.
+- Setup-file action log output is now structured around what was embedded vs. skipped: lists the auto-imported triggers up front and only prints the manual-setup steps for triggers that couldn't be embedded (e.g. when `surfaceIds` is blank).
+
+### Notes
+- Bundled-modules registry submission was rejected by Bitfocus — the module is distributed via GitHub releases for side-loading instead. See README for install instructions.
+
 ## 0.4.1 — 2026-05-10
 
 ### Added
