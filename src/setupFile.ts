@@ -91,15 +91,23 @@ function setPageAction(surfaceId: string, page: number): Record<string, unknown>
 }
 
 function variableValueCondition(variableId: string, value: string): Record<string, unknown> {
+	// Companion v4 expects each option value wrapped in { value, isExpression }
+	// rather than a raw string — without the wrap, the trigger editor shows the
+	// fields as empty and the condition never matches.
 	return {
 		id: nano(),
 		type: 'feedback',
 		definitionId: 'variable_value',
 		connectionId: 'internal',
-		options: { variable: variableId, op: 'eq', value },
+		options: {
+			variable: { value: variableId, isExpression: false },
+			op: { value: 'eq', isExpression: false },
+			value: { value, isExpression: false },
+		},
 		upgradeIndex: -1,
 		isInverted: { isExpression: false, value: false },
 		style: {},
+		children: {},
 	}
 }
 

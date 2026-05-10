@@ -5,7 +5,7 @@
 	"name": "screensaver",
 	"shortname": "Screensaver",
 	"description": "Plays Elgato Marketplace screensavers across your Stream Deck after an idle timeout",
-	"version": "0.5.2",
+	"version": "0.5.3",
 	"license": "MIT",
 	"repository": "git+https://github.com/Modest-Tools/companion-module-screensaver.git",
 	"bugs": "https://github.com/Modest-Tools/companion-module-screensaver/issues",

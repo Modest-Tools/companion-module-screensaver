@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3 — 2026-05-10
+
+### Fixed
+- **Generated `.companionconfig` triggers had broken conditions.** The page-switch triggers (activate/return) emitted `variable_value` conditions with raw string option values — Companion v4 expects each option wrapped in `{ value, isExpression }`, so when imported the conditions silently failed to evaluate (variable / op / value showed as empty in the trigger editor) and the triggers never fired. Conditions are now emitted in the wrapped shape that matches what Companion's own export produces. Existing setups with the buggy triggers need to be re-imported from a freshly-regenerated file (or manually re-pick the variable / op / value in the trigger editor).
+
 ## 0.5.2 — 2026-05-10
 
 ### Fixed
