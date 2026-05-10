@@ -74,6 +74,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 	private library: InstalledScreensaver[] = []
 	private failedAutoInstalls = new Set<string>()
 	private skipNonScreensaverZips = new Set<string>()
+	private manualStartGuardUntil = 0
 
 	constructor(internal: unknown) {
 		super(internal)
@@ -541,12 +542,25 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 
 	markActivity(): void {
 		this.idle.markActivity()
-		if (this.active) this.stopScreensaver('button')
+		if (!this.active) return
+		// Guard: when the screensaver was just started manually (e.g. via a
+		// Start screensaver action on a button), the SAME press that started
+		// it also fires the "reset idle on any press" trigger, which would
+		// otherwise immediately stop the screensaver again. Ignore the reset
+		// for a short window after a manual start.
+		if (Date.now() < this.manualStartGuardUntil) {
+			this.log('debug', 'Ignoring idle reset within manual-start grace period')
+			return
+		}
+		this.stopScreensaver('button')
 	}
 
 	async startScreensaver(reason: 'idle' | 'manual'): Promise<void> {
 		if (this.active) return
 		this.active = true
+		if (reason === 'manual') {
+			this.manualStartGuardUntil = Date.now() + 2000
+		}
 		this.log('info', `Starting screensaver (${reason})`)
 		this.setVariableValues({ screensaver_active: '1' })
 		this.checkFeedbacks('screensaver_active', 'screensaver_tile')

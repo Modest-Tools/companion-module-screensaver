@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4 — 2026-05-10
+
+### Fixed
+- **Manual `Start screensaver` action was immediately cancelled by its own button press** — the "reset idle on any press" trigger fires for every button press, including the one that triggered the start action, so the screensaver would activate and then immediately get stopped again, bouncing the deck back to the return page. Manual starts now get a 2-second grace window during which `reset_idle_timer` is suppressed.
+
 ## 0.5.3 — 2026-05-10
 
 ### Fixed
