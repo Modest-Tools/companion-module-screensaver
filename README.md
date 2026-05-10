@@ -1,67 +1,62 @@
 # companion-module-screensaver
 
-A Bitfocus Companion module that turns your Stream Deck into a screensaver after an idle period. Pick from two modes: **animated GIF tiles** (port of Elgato's Stream Deck screensavers, including marketplace zips) or **text mosaic** (a quote painted across the entire deck like a single image instead of cramming text into each button).
+A Bitfocus Companion module that plays **Elgato Stream Deck screensavers** across your deck after an idle period — a pure-JS port of the screensaver feature in Elgato's native Stream Deck app, so any animated screensaver from the [Elgato Marketplace](https://marketplace.elgato.com) works on Companion-controlled decks.
 
-> Status: early. Working on real hardware via Companion's local module import. Not yet in the official Companion bundled-modules registry.
+> Status: early. Working on real hardware via Companion's local module import. Submission to the official Companion bundled-modules registry is in flight.
 
-## Features
+## What it does
 
-- 🖼️ **Elgato screensaver port** — drop an Elgato Marketplace `.zip` into your library folder and the module unpacks it, picks the right resolution for your deck (Mini / Standard / XL / Plus), and animates it across all your buttons.
-- ✏️ **Text mosaic** — quotes render as a single image painted across all 15 buttons, with auto-fit font sizing and word-by-word reveal. Long words can span multiple buttons; the type isn't constrained per-tile.
-- 🌐 **Quote sources** — bundled built-in quotes, or point at any JSON URL that returns `{ quote, author }`.
-- 🎛️ **Composite mode** — text mosaic over the GIF background for a polished Elgato-style look.
-- ⏱️ **Idle detection** — configurable timeout, with a "warning" feedback that triggers shortly before activation.
-- 🔄 **One-click page setup** — a `Generate page setup file` action writes a `.companionconfig` file you import via Companion's Settings → Import to install all 15 billboard buttons in one shot.
-- 🛑 **Auto-dismiss** — any button press while the screensaver is active resets the idle timer and exits.
+- 🖼️ **Elgato Marketplace port** — drop a screensaver `.zip` into the **Install screensaver from zip** action and the module unpacks it into your library, picks the right resolution for your deck (Mini / Standard / XL / Plus), and starts animating across all your buttons after the configured idle period.
+- ⏱️ **Idle detection** — configurable timeout, with a "warning" feedback that triggers shortly before activation so you can flash a key.
+- 🔄 **One-click page setup** — a `Generate page setup file` action writes a `.companionconfig` you import via Companion's Settings → Import to install all the billboard buttons in one shot, pre-wired with the screensaver tile feedback and idle reset on press.
+- 🛑 **Auto-dismiss** — pressing any button on the billboard page resets the idle timer and exits the screensaver.
+- 📂 **Multi-screensaver library** — keep several installed; pick the active one from a dropdown without redoing your billboard page.
 
 ## Quick start
 
 ### 1. Install the module
 
-Until this module lands in Companion's official store, install it locally:
+Until this lands in Companion's official store, install it as a local package:
 
-```bash
-git clone https://github.com/Modest-Tools/companion-module-screensaver.git
-cd companion-module-screensaver
-npm install
-npm run build
-./node_modules/.bin/companion-module-build
-```
+1. Download the latest `.tgz` from [Releases](https://github.com/Modest-Tools/companion-module-screensaver/releases).
+2. In Companion: **Modules → Import module package** → pick the `.tgz`.
 
-That produces `screensaver-<version>.tgz`. In Companion: **Modules → Import module package** → pick that file.
+(Or build from source — see [Development](#development).)
 
 ### 2. Add the connection
 
 **Connections → Add Connection → Modest: Screensaver**.
 
-### 3. Generate the billboard page
+Configure:
+- **Idle minutes before activation** — how long with no input before the screensaver kicks in.
+- **Target billboard page** — which Companion page to render the screensaver on.
+- **Library folder path** — where installed screensavers are stored. Defaults to `~/Documents/CompanionScreensavers`.
+- **Deck size** — Mini / Standard / XL / Plus. Used to pick the right tile resolution.
+- **Active screensaver** — dropdown of screensavers in your library. Empty until you install one.
 
-In your billboard page (default page 1), use the **Generate page setup file** action once. It writes `~/Downloads/screensaver-setup.companionconfig`. Import that file via **Settings → Import / Export → Import** and pick a target page. All 15 mosaic buttons appear pre-wired.
+### 3. Install a screensaver from the Elgato Marketplace
 
-### 4. (Optional) Install an Elgato screensaver
+1. Download a screensaver `.zip` from [marketplace.elgato.com](https://marketplace.elgato.com) (filter for screensavers).
+2. Trigger the **Install screensaver from zip** action with the path to the `.zip`.
+3. Open the connection settings — your screensaver appears in the **Active screensaver** dropdown. Pick it.
 
-1. Download a screensaver `.zip` from [marketplace.elgato.com](https://marketplace.elgato.com).
-2. Use the **Install screensaver from zip** action with the path to the `.zip`. The module extracts it into your library folder (defaults to `~/Documents/CompanionScreensavers`).
-3. Open the connection settings and pick the screensaver from the **Active screensaver** dropdown.
+### 4. Generate the billboard page
 
-### 5. (Optional) Wire a custom quote URL
+Use the **Generate page setup file** action once. It writes `~/Downloads/screensaver-setup.companionconfig`. Import it via **Settings → Import / Export → Import** and pick a target page. All the buttons appear pre-wired — each cell shows its corresponding screensaver tile via the `Screensaver tile` feedback, and presses reset the idle timer.
 
-Set **Quote source** to *Custom URL* and provide a URL that returns:
+### 5. (Recommended) Wire global idle reset
 
-```json
-{ "quote": "Your text here.", "author": "Source name" }
-```
+The Companion module SDK doesn't expose a global "any button pressed" event, so by default only presses on the billboard page count as activity. Add a Companion **Trigger** to fix that:
 
-Refresh interval is configurable (default 3 minutes).
+- Triggers → New Trigger → **On any button press** → Action: `Modest: Screensaver — Reset idle timer`
 
-## Display modes
+Now presses on every surface reset the idle counter.
 
-| Mode | What you see |
-|---|---|
-| **Text mosaic** *(default)* | Quote rendered as one image painted across all buttons. No GIF background. |
-| **Text mosaic over GIF** | Quote layered on top of an animated Elgato screensaver. |
-| **GIF only** | Animated screensaver with no text. |
-| **Legacy: per-button text variables** | The pre-mosaic behavior — chunks the quote into text variables per slot. Kept for back-compat. |
+### 6. (Recommended) Auto-switch to the billboard page
+
+Modules can't directly drive page navigation. Add a second Trigger:
+
+- **Variable changes** → `screensaver:screensaver_active` becomes `1` → Action: `internal — Set surface page` → set your surfaces to the billboard page.
 
 ## Actions
 
@@ -69,7 +64,6 @@ Refresh interval is configurable (default 3 minutes).
 |---|---|
 | `Start screensaver` | Manually trigger the screensaver. |
 | `Stop screensaver` | Manually exit the screensaver. |
-| `Refresh quote` | Pick a new quote and re-run the reveal. |
 | `Reset idle timer` | Mark activity (already wired into every billboard button). |
 | `Install screensaver from zip` | Extract an Elgato `.zip` into the library folder. |
 | `Generate page setup file` | Write a `.companionconfig` you import to install the billboard page. |
@@ -79,23 +73,19 @@ Refresh interval is configurable (default 3 minutes).
 | Feedback | Use it for |
 |---|---|
 | `Screensaver active` | Boolean — true while the screensaver is showing. |
-| `Idle warning` | Boolean — true when the deck is about to go idle (configurable threshold). |
-| `Screensaver tile` | Advanced — pushes the per-slot image buffer. Wired automatically by the generated billboard page. |
+| `Idle warning (about to activate)` | Boolean — true when remaining idle seconds is below a configurable threshold. Useful for flashing a key before the screensaver kicks in. |
+| `Screensaver tile (animated background)` | Advanced — pushes the per-slot animated GIF tile image. Wired automatically by the generated billboard page. |
 
 ## Variables
 
 | Variable | Value |
 |---|---|
 | `screensaver_active` | `1` while showing, `0` otherwise |
-| `seconds_since_last_press` | Live counter |
-| `current_quote` | The full text of the current quote |
-| `current_author` | The author of the current quote |
-| `last_quote_fetched_at` | ISO timestamp |
-| `quote_chunk_N` / `author_chunk_N` | Legacy per-slot text variables (only populated in `text-vars` mode) |
+| `seconds_since_last_press` | Live counter, updated every second |
 
 ## Library folder layout
 
-When you install screensavers from zip, they end up at:
+Installed screensavers end up at:
 
 ```
 <libraryPath>/<screensaver name>/Profiles/Wallpaper GIFs/SD Standard/Standard Pad 1.gif
@@ -106,37 +96,17 @@ When you install screensavers from zip, they end up at:
 
 The module auto-picks the subfolder matching the configured **Deck size**, and falls back to the closest available size if the requested one isn't included in the zip.
 
-## Idle detection — required setup
-
-The Companion module SDK doesn't expose a global "any button pressed" event. Idle detection works in two ways:
-
-1. **Automatic** for buttons on the screensaver's billboard page — every generated chunk button calls `Reset idle timer` on press.
-2. **Recommended for everything else** — add a Companion **Trigger**:
-   - Triggers → New Trigger → On any button press → Action: `Screensaver — Reset idle timer`
-
-With that trigger in place, presses on every surface reset the idle counter.
-
-## Switching to the billboard page
-
-Modules can't directly drive page navigation. Add a second Trigger:
-
-1. Event type: **Variable changes** → `screensaver:screensaver_active` becomes `1`
-2. Action: `internal — Set surface page` → set all your surfaces to the configured billboard page
-
 ## Development
 
 ```bash
-npm install
-npm run dev   # tsc --watch
+git clone https://github.com/Modest-Tools/companion-module-screensaver.git
+cd companion-module-screensaver
+yarn install
+yarn run build
+yarn run package
 ```
 
-Then in another terminal, build the package and re-import:
-
-```bash
-./node_modules/.bin/companion-module-build
-```
-
-The output `.tgz` goes in **Modules → Import module package**. After importing a new version, open the connection's edit dialog and switch the **Module Version** to match.
+Output is `screensaver-<version>.tgz`. Import via **Modules → Import module package** in Companion. After importing a new version, open the connection's edit dialog and switch the **Module Version** to match.
 
 ## License
 
@@ -145,7 +115,6 @@ MIT — see [LICENSE](LICENSE).
 ## Credits
 
 - Built on [@companion-module/base](https://github.com/bitfocus/companion-module-base).
-- Text rendering via [pureimage](https://github.com/joshmarinacci/node-pureimage) (pure-JS, no native deps).
 - GIF decoding via [omggif](https://github.com/deanm/omggif).
-- Bundled font: [Roboto](https://fonts.google.com/specimen/Roboto) (Apache 2.0).
-- Elgato Stream Deck and the Marketplace are trademarks of Elgato Systems. This module is unaffiliated.
+- Zip extraction via [adm-zip](https://github.com/cthackers/adm-zip).
+- Elgato Stream Deck and the Elgato Marketplace are trademarks of Elgato Systems. This module is unaffiliated; it just reads the public `.zip` format their marketplace exports.

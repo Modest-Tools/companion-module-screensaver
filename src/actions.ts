@@ -3,13 +3,12 @@ import type ModuleInstance from './main.js'
 export type ActionsSchema = {
 	start_screensaver: { options: Record<string, never> }
 	stop_screensaver: { options: Record<string, never> }
-	refresh_quote: { options: Record<string, never> }
 	reset_idle_timer: { options: Record<string, never> }
-	generate_setup_file: {
-		options: { outputPath: string; includeRefreshButton: boolean }
-	}
 	install_screensaver_zip: {
 		options: { zipPath: string; displayName: string }
+	}
+	generate_setup_file: {
+		options: { outputPath: string }
 	}
 }
 
@@ -27,13 +26,6 @@ export function UpdateActions(self: ModuleInstance): void {
 			options: [],
 			callback: async () => {
 				self.stopScreensaver('manual')
-			},
-		},
-		refresh_quote: {
-			name: 'Refresh quote',
-			options: [],
-			callback: async () => {
-				await self.refreshQuoteAndReveal()
 			},
 		},
 		reset_idle_timer: {
@@ -74,7 +66,7 @@ export function UpdateActions(self: ModuleInstance): void {
 		generate_setup_file: {
 			name: 'Generate page setup file (.companionconfig)',
 			description:
-				'Writes a .companionconfig file containing all 15 chunk buttons. After running, go to Settings → Import / Export → Import in Companion and pick this file.',
+				'Writes a .companionconfig file containing all billboard buttons (one per slot). After running, go to Settings → Import / Export → Import in Companion and pick this file.',
 			options: [
 				{
 					id: 'outputPath',
@@ -82,17 +74,10 @@ export function UpdateActions(self: ModuleInstance): void {
 					label: 'Output path',
 					default: '~/Downloads/screensaver-setup.companionconfig',
 				},
-				{
-					id: 'includeRefreshButton',
-					type: 'checkbox',
-					label: 'Include a manual REFRESH QUOTE button',
-					default: true,
-				},
 			],
 			callback: async (event) => {
 				const outputPath = String(event.options.outputPath ?? '~/Downloads/screensaver-setup.companionconfig')
-				const includeRefreshButton = Boolean(event.options.includeRefreshButton ?? true)
-				await self.generateSetupFile({ outputPath, includeRefreshButton })
+				await self.generateSetupFile({ outputPath })
 			},
 		},
 	})

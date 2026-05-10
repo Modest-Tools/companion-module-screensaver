@@ -1,28 +1,35 @@
 # Screensaver
 
-Displays a quote-of-the-day style screensaver on a Stream Deck after a configurable idle period, with smart word-by-word reveal animations.
+Plays Elgato Marketplace screensavers across your Stream Deck after a configurable idle period.
 
 ## Setup
 
-1. Add a connection of type **Screensaver**.
-2. Configure the idle timeout, refresh interval, and target page.
-3. On your billboard page, place text buttons that use the chunk variables:
-   - `$(screensaver:quote_chunk_1)` ... `$(screensaver:quote_chunk_N)`
-   - `$(screensaver:author_chunk_1)` ... `$(screensaver:author_chunk_N)`
-4. (Optional) Use the `screensaver_active` and `screensaver_idle_warning` feedbacks to style buttons.
+1. Add a connection of type **Modest: Screensaver**.
+2. Set **Idle minutes**, **Target page**, **Library folder path**, and **Deck size**.
+3. Trigger the **Install screensaver from zip** action with the path to a `.zip` from [Elgato Marketplace](https://marketplace.elgato.com).
+4. In the connection settings, pick the screensaver from the **Active screensaver** dropdown.
+5. Trigger the **Generate page setup file** action and import the resulting `.companionconfig` to install the billboard page.
+
+## Recommended triggers
+
+- **On any button press → Reset idle timer** — so presses on any surface (not just the billboard page) count as activity.
+- **Variable `screensaver:screensaver_active` becomes `1` → Set surface page to billboard** — auto-switches to the billboard page when the screensaver kicks in.
 
 ## Actions
 
-- **Start screensaver** — manually trigger the screensaver
-- **Stop screensaver** — exit the screensaver
-- **Refresh quote** — fetch a new quote and run the reveal sequence
+- **Start screensaver** — manually trigger
+- **Stop screensaver** — exit
 - **Reset idle timer** — reset the inactivity counter
+- **Install screensaver from zip** — extract an Elgato `.zip` into the library
+- **Generate page setup file** — write a `.companionconfig` for one-shot import
+
+## Feedbacks
+
+- **Screensaver active** — true while showing
+- **Idle warning (about to activate)** — true when remaining idle seconds is at most N
+- **Screensaver tile** — pushes the per-slot GIF frame (auto-wired by the generated page)
 
 ## Variables
 
-- `quote_chunk_1` … `quote_chunk_N` — quote chunks (smart-grouped words)
-- `author_chunk_1` … `author_chunk_N` — author chunks
 - `screensaver_active` — `1` while running, `0` otherwise
-- `current_quote`, `current_author` — full text
 - `seconds_since_last_press` — live idle counter
-- `last_quote_fetched_at` — ISO timestamp of last fetch

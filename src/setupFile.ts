@@ -19,16 +19,12 @@ function expandPath(p: string): string {
 	return p
 }
 
-function makeChunkButton(
-	connectionId: string,
-	slot: number,
-	textExpression: string,
-): Record<string, unknown> {
+function makeTileButton(connectionId: string, slot: number): Record<string, unknown> {
 	return {
 		type: 'button',
 		style: {
-			text: textExpression,
-			textExpression: true,
+			text: '',
+			textExpression: false,
 			size: 'auto',
 			png64: null,
 			alignment: 'center:center',
@@ -73,50 +69,6 @@ function makeChunkButton(
 	}
 }
 
-function makeRefreshButton(connectionId: string): Record<string, unknown> {
-	return {
-		type: 'button',
-		style: {
-			text: 'REFRESH\\nQUOTE',
-			textExpression: false,
-			size: 'auto',
-			png64: null,
-			alignment: 'center:center',
-			pngalignment: 'center:center',
-			color: 0xffffff,
-			bgcolor: 0x505050,
-			show_topbar: false,
-		},
-		options: { stepProgression: 'auto', stepExpression: '', rotaryActions: false },
-		feedbacks: [],
-		steps: {
-			'0': {
-				action_sets: {
-					down: [
-						{
-							type: 'action',
-							id: nano(),
-							definitionId: 'refresh_quote',
-							connectionId,
-							options: {},
-							upgradeIndex: -1,
-							children: {},
-						},
-					],
-					up: [],
-				},
-				options: { runWhileHeld: [] },
-			},
-		},
-		localVariables: [],
-	}
-}
-
-function textForSlot(slot: number, quoteSlots: number): string {
-	if (slot < quoteSlots) return `$(Screensaver:quote_chunk_${slot + 1})`
-	return `$(Screensaver:author_chunk_${slot - quoteSlots + 1})`
-}
-
 export type GenerateOpts = {
 	connectionId: string
 	connectionLabel: string
@@ -124,14 +76,13 @@ export type GenerateOpts = {
 	moduleId: string
 	config: ModuleConfig
 	outputPath: string
-	includeRefreshButton: boolean
 }
 
 export async function generateSetupFile(opts: GenerateOpts): Promise<string> {
 	const cfg = opts.config
 	const cols = cfg.gridCols
 	const rows = cfg.gridRows
-	const totalSlots = Math.min(cfg.quoteSlots + cfg.authorSlots, cols * rows)
+	const totalSlots = cols * rows
 
 	const controls: Record<string, Record<string, Record<string, unknown>>> = {}
 	for (let r = 0; r < rows; r++) controls[String(r)] = {}
@@ -139,28 +90,7 @@ export async function generateSetupFile(opts: GenerateOpts): Promise<string> {
 	for (let slot = 0; slot < totalSlots; slot++) {
 		const r = Math.floor(slot / cols)
 		const c = slot % cols
-		controls[String(r)][String(c)] = makeChunkButton(
-			opts.connectionId,
-			slot,
-			textForSlot(slot, cfg.quoteSlots),
-		)
-	}
-
-	if (opts.includeRefreshButton) {
-		// Place refresh button at first empty cell on row 0, or row 0 col cols-1 if grid full
-		const row0 = controls['0']
-		let placed = false
-		for (let c = 0; c < cols + 1; c++) {
-			if (!row0[String(c)]) {
-				row0[String(c)] = makeRefreshButton(opts.connectionId)
-				placed = true
-				break
-			}
-		}
-		if (!placed) {
-			// Grid full; put it just outside as col=cols
-			row0[String(cols)] = makeRefreshButton(opts.connectionId)
-		}
+		controls[String(r)][String(c)] = makeTileButton(opts.connectionId, slot)
 	}
 
 	const exportObj = {
@@ -171,7 +101,7 @@ export async function generateSetupFile(opts: GenerateOpts): Promise<string> {
 			id: nano(),
 			name: 'Screensaver',
 			controls,
-			gridSize: { minColumn: 0, maxColumn: cols, minRow: 0, maxRow: rows },
+			gridSize: { minColumn: 0, maxColumn: cols - 1, minRow: 0, maxRow: rows - 1 },
 		},
 		instances: {
 			[opts.connectionId]: {

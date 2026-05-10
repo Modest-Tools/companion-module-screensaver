@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — 2026-05-10
+
+### Removed
+- **Quote-of-the-day mode** and the entire text mosaic system. The module is now focused exclusively on porting Elgato Marketplace screensavers — the mosaic text rendering needed more polish than was worth shipping in this milestone, and the GIF screensaver experience is the primary use case.
+- Removed dependencies: `pureimage` and the bundled Roboto fonts (~1MB saved). Removed source files: `quoteSource.ts`, `quotes.json`, `textMosaic.ts`, `chunker.ts`, `build-config.cjs`.
+- Removed actions: `refresh_quote`. Removed config fields: `quoteSource`, `customQuoteUrl`, `maxCharsPerChunk`, `quoteRevealDelayMs`, `authorRevealDelayMs`, `authorStartDelayMs`, `quoteSlots`, `authorSlots`, `displayMode`, `mosaicLayout`, `tilePixelSize`, `mosaicTextColor`, `mosaicAuthorColor`, `mosaicBgColor`, `mosaicWordRevealMs`. Removed variables: `quote_chunk_*`, `author_chunk_*`, `current_quote`, `current_author`, `last_quote_fetched_at`.
+
+### Changed
+- Generated billboard page no longer carries text expressions on each button — every cell is just the `Screensaver tile` feedback (GIF frame for that slot) plus the `Reset idle timer` action.
+- Description in the manifest updated to reflect the focused scope.
+- Package size: 621 KB → 24 KB.
+
+### Notes
+- Existing connections from v0.3.x will keep working: the removed config fields are simply ignored. The active screensaver, library path, deck size, and idle timeout settings are preserved.
+- If you want the quote/mosaic feature back, it's preserved in the v0.3.2 git tag and can be revived once the formatting is polished.
+
 ## 0.3.2 — 2026-05-09
 
 ### Added
