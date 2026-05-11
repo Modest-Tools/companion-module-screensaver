@@ -18,8 +18,14 @@ export type InstalledScreensaver = {
 	rootPath: string // absolute path to the screensaver folder
 	format: 'tiles' | 'master'
 	resolutionFolders: Record<DeckSize, string | null>
-	/** When format === 'master', list of `.webp` files found at the folder root. */
+	/** When format === 'master', all master files found at the folder root (.webp or .gif). */
 	masterFiles: string[]
+	/**
+	 * When format === 'master', the master file selected for each deck size based on Elgato's
+	 * filename convention (`*_MK_2.gif` → standard, `*_XL_2.gif` → xl, etc.). Falls back to null
+	 * for deck sizes without a matching file; callers should use `masterFiles[0]` as a final fallback.
+	 */
+	masterFilesByDeckSize: Record<DeckSize, string | null>
 }
 
 /** Default library location: ~/Documents/CompanionScreensavers */
@@ -58,7 +64,7 @@ export async function scanLibrary(libraryPath: string): Promise<InstalledScreens
 		const resolutions = await findResolutionFolders(full)
 		const hasResolutions = Object.values(resolutions).some((v) => v !== null)
 
-		const masterFiles = hasResolutions ? [] : await findMasterWebpFiles(full)
+		const masterFiles = hasResolutions ? [] : await findMasterFiles(full)
 		if (!hasResolutions && masterFiles.length === 0) continue
 
 		out.push({
@@ -68,17 +74,44 @@ export async function scanLibrary(libraryPath: string): Promise<InstalledScreens
 			format: hasResolutions ? 'tiles' : 'master',
 			resolutionFolders: resolutions,
 			masterFiles,
+			masterFilesByDeckSize: hasResolutions
+				? { mini: null, standard: null, xl: null, plus: null }
+				: classifyMasterFilesByDeckSize(masterFiles),
 		})
 	}
 	return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/** Elgato's deck-model naming convention in master-format pack filenames. */
+const DECK_FILENAME_HINTS: Record<DeckSize, RegExp[]> = {
+	standard: [/(^|[_\-\s])mk[_\-\s]?2($|[_\-\s\.])/i, /(^|[_\-\s])standard($|[_\-\s\.])/i],
+	xl: [/(^|[_\-\s])xl($|[_\-\s\.])/i],
+	plus: [/(^|[_\-\s])sd[_\-\s]?plus($|[_\-\s\.])/i, /(^|[_\-\s])plus($|[_\-\s\.])/i],
+	mini: [/(^|[_\-\s])sd[_\-\s]?mini($|[_\-\s\.])/i, /(^|[_\-\s])mini($|[_\-\s\.])/i],
+}
+
+export function classifyMasterFilesByDeckSize(files: string[]): Record<DeckSize, string | null> {
+	const out: Record<DeckSize, string | null> = { mini: null, standard: null, xl: null, plus: null }
+	for (const file of files) {
+		const base = path.basename(file)
+		for (const size of Object.keys(DECK_FILENAME_HINTS) as DeckSize[]) {
+			if (out[size]) continue
+			if (DECK_FILENAME_HINTS[size].some((re) => re.test(base))) {
+				out[size] = file
+			}
+		}
+	}
+	return out
+}
+
 /**
- * Find `.webp` files at the screensaver folder root — Elgato's "single master"
- * format where one full-deck animation is sliced into per-button tiles at
- * runtime instead of being shipped pre-tiled.
+ * Find master-format files at the screensaver folder root — Elgato's "single master"
+ * shape where one full-deck animation is sliced into per-button tiles at runtime
+ * instead of being shipped pre-tiled. Recognizes both `.webp` (canonical) and `.gif`
+ * (older Elgato packs like Pac Man Animated Screensaver V2, which ship loose
+ * per-deck-size full-deck GIFs at the root).
  */
-async function findMasterWebpFiles(root: string): Promise<string[]> {
+async function findMasterFiles(root: string): Promise<string[]> {
 	let entries: string[]
 	try {
 		entries = await readdir(root)
@@ -88,7 +121,8 @@ async function findMasterWebpFiles(root: string): Promise<string[]> {
 	const out: string[] = []
 	for (const e of entries) {
 		if (e.startsWith('.')) continue
-		if (!e.toLowerCase().endsWith('.webp')) continue
+		const lower = e.toLowerCase()
+		if (!lower.endsWith('.webp') && !lower.endsWith('.gif')) continue
 		const full = path.join(root, e)
 		try {
 			const s = await stat(full)
@@ -204,7 +238,17 @@ export function isScreensaverZip(zipPath: string): boolean {
 	// with no other structural folders. Heuristic: at least one .webp entry whose
 	// path has at most one separator.
 	const hasShallowWebp = lowerNames.some((n) => n.endsWith('.webp') && (n.match(/\//g) ?? []).length <= 1)
-	return hasShallowWebp
+	if (hasShallowWebp) return true
+
+	// Master-GIF format: shallow `.gif` files whose names match Elgato's deck-model naming
+	// (e.g. `Pac_Man_MK_2.gif`, `Pac_Man_XL_2.gif`). Avoids matching random GIF-containing zips.
+	const hasDeckNamedGif = lowerNames.some((n) => {
+		if (!n.endsWith('.gif')) return false
+		if ((n.match(/\//g) ?? []).length > 1) return false
+		const base = n.split('/').pop() ?? n
+		return /(^|[_\-\s])(mk[_\-\s]?2|xl|sd[_\-\s]?plus|sd[_\-\s]?mini)($|[_\-\s\.])/i.test(base)
+	})
+	return hasDeckNamedGif
 }
 
 /**

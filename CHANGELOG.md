@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — 2026-05-11
+
+### Added
+- **Master-format GIF support.** Older Elgato packs (e.g. "Pac Man Animated Screensaver V2") ship a full-deck animation as a per-deck-size `.gif` file at the screensaver folder root — `*_MK_2.gif` for Standard / MK.2, `*_XL_2.gif` for XL, `*_SDPlus_2.gif` for Plus, `*_SDMini_2.gif` for Mini. The library scanner now recognises these as master format and the renderer picks the file matching the configured deck size, falling back to the first available file if none match. Decoding via `omggif` with the same running-canvas disposal handling used for the per-button-tile path. Frames are pre-decoded into RGBA buffers at load so per-frame slicing is O(1).
+- Auto-installer's zip sniffer now accepts master-GIF packs (`.gif` files at zip root whose names match the Elgato deck-model naming convention).
+
+### Changed
+- Master-format abstraction generalised. `WebpMasterDeck` → `MasterDeck`, with a polymorphic `getFrameRgba(idx)` so the slicer + frame-timing helpers don't care whether the source is `.webp` or `.gif`. WebP loader lives in `webpMaster.ts`, GIF loader in `gifMaster.ts`, shared bits in `masterDeck.ts`.
+- `InstalledScreensaver` gains `masterFilesByDeckSize: Record<DeckSize, string | null>` — a deck-size-keyed pre-classification of master files based on Elgato's filename hints. The active-screensaver loader uses this first, falling back to `masterFiles[0]` for single-file packs (typical WebP shape).
+
 ## 0.5.4 — 2026-05-10
 
 ### Fixed

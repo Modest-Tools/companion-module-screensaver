@@ -11,7 +11,9 @@ import { UpdateFeedbacks, type FeedbacksSchema } from './feedbacks.js'
 import { UpdatePresets } from './presets.js'
 import { IdleTracker } from './idleTracker.js'
 import { loadTileFolder, tileFrame, type TileSet } from './screensaverImage.js'
-import { loadWebpMaster, frameIndexAtTime, decodeAndSliceFrame, type WebpMasterDeck } from './webpMaster.js'
+import { loadWebpMaster } from './webpMaster.js'
+import { loadGifMaster } from './gifMaster.js'
+import { frameIndexAtTime, decodeAndSliceFrame, type MasterDeck } from './masterDeck.js'
 import { generateSetupFile } from './setupFile.js'
 import {
 	scanLibrary,
@@ -66,7 +68,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 	private tileInterval: NodeJS.Timeout | null = null
 	private incomingScanInterval: NodeJS.Timeout | null = null
 	private tiles: TileSet | null = null
-	private master: WebpMasterDeck | null = null
+	private master: MasterDeck | null = null
 	private masterTiles: Map<number, Buffer> | null = null
 	private masterFrameIdx = -1
 	private masterDecodeInFlight = false
@@ -324,14 +326,18 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		if (!ss) return
 
 		if (ss.format === 'master') {
-			const masterPath = ss.masterFiles[0]
+			const masterPath = ss.masterFilesByDeckSize[this.config.deckSize] ?? ss.masterFiles[0]
 			if (!masterPath) {
-				this.log('warn', `Active screensaver "${ss.name}" reports master format but has no .webp file`)
+				this.log('warn', `Active screensaver "${ss.name}" reports master format but has no .webp/.gif file`)
 				return
 			}
+			const ext = masterPath.toLowerCase().endsWith('.gif') ? 'gif' : 'webp'
 			try {
-				this.log('info', `Loading master-format screensaver "${ss.name}" from ${masterPath}`)
-				this.master = await loadWebpMaster(masterPath, this.config.gridCols, this.config.gridRows)
+				this.log('info', `Loading master-format screensaver "${ss.name}" (${ext}) from ${masterPath}`)
+				this.master =
+					ext === 'gif'
+						? await loadGifMaster(masterPath, this.config.gridCols, this.config.gridRows)
+						: await loadWebpMaster(masterPath, this.config.gridCols, this.config.gridRows)
 				this.tileLoadStartedAt = Date.now()
 				this.log(
 					'info',
