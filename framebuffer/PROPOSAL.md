@@ -9,7 +9,7 @@
 
 ## Proposal: a `PageOverlayLayer` so animated backgrounds compose with PR #4098's element model
 
-Following up on my [May 10 comment](https://github.com/bitfocus/companion/issues/428#issuecomment-PLACEHOLDER) — instead of just offering decoder/slicer code, I want to put a concrete API shape on the table so we can converge before anyone writes code.
+Following up on my [May 10 comment](https://github.com/bitfocus/companion/issues/428#issuecomment-4415819619) — instead of just offering decoder/slicer code, I want to put a concrete API shape on the table so we can converge before anyone writes code.
 
 I think the recently-merged graphics overhaul ([#4098](https://github.com/bitfocus/companion/pull/4098)) actually changes the answer here significantly. The per-button render pipeline now goes through an ordered element list (`StyleLayersModel` — `elements[0]` is a `canvas` background, then text/image layers on top). That makes a page-level overlay much cleaner to add than it would have been pre-#4098: we don't have to invent a new composition pipeline, we just need a page-scoped element list that gets composited *under* `elements[0]` of every button on that page, clipped to each button's grid cell.
 
