@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 — 2026-05-12
+
+### Fixed
+- **Pac Man Animated Screensaver V2 (and similarly-shaped Elgato packs) was invisible to the scanner.** Three independent bugs combined to produce an install that left no trace in the dropdown:
+  - `findMasterFiles()` only read the screensaver folder's direct root, so packs that ship their full-deck GIFs inside a `Gifs/` subfolder returned zero matches. The scanner now also looks in `Gifs/`/`gifs/`.
+  - `isScreensaverZip()` capped the deck-named-gif heuristic at one path separator, so a zip that nested gifs inside a top-level wrapper folder *and* a `Gifs/` subfolder (two separators) was rejected outright by the auto-installer. The depth cap is gone — the Elgato deck-suffix regex (`*_MK_2.gif`, `*_XL_2.gif`, `*_SDPlus_2.gif`, `*_SDMini_2.gif`) is specific enough to recognise these packs at any depth.
+  - `installScreensaverFromZip()` extracted entry paths verbatim, so a zip with a single top-level wrapper folder (e.g. `Pac Man Animated Screensaver V2/…`) produced an install nested one level too deep. The installer now detects a single common top-level folder across all entries and strips it during extraction.
+
 ## 0.6.0 — 2026-05-11
 
 ### Added

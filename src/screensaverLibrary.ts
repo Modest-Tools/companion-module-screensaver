@@ -109,26 +109,39 @@ export function classifyMasterFilesByDeckSize(files: string[]): Record<DeckSize,
  * shape where one full-deck animation is sliced into per-button tiles at runtime
  * instead of being shipped pre-tiled. Recognizes both `.webp` (canonical) and `.gif`
  * (older Elgato packs like Pac Man Animated Screensaver V2, which ship loose
- * per-deck-size full-deck GIFs at the root).
+ * per-deck-size full-deck GIFs at the root or inside a `Gifs/` subfolder).
  */
 async function findMasterFiles(root: string): Promise<string[]> {
-	let entries: string[]
-	try {
-		entries = await readdir(root)
-	} catch {
-		return []
-	}
-	const out: string[] = []
-	for (const e of entries) {
-		if (e.startsWith('.')) continue
-		const lower = e.toLowerCase()
-		if (!lower.endsWith('.webp') && !lower.endsWith('.gif')) continue
-		const full = path.join(root, e)
+	const dirs = [root]
+	for (const sub of ['Gifs', 'gifs']) {
+		const p = path.join(root, sub)
 		try {
-			const s = await stat(full)
-			if (s.isFile()) out.push(full)
+			const s = await stat(p)
+			if (s.isDirectory()) dirs.push(p)
 		} catch {
 			/* ignore */
+		}
+	}
+
+	const out: string[] = []
+	for (const dir of dirs) {
+		let entries: string[]
+		try {
+			entries = await readdir(dir)
+		} catch {
+			continue
+		}
+		for (const e of entries) {
+			if (e.startsWith('.')) continue
+			const lower = e.toLowerCase()
+			if (!lower.endsWith('.webp') && !lower.endsWith('.gif')) continue
+			const full = path.join(dir, e)
+			try {
+				const s = await stat(full)
+				if (s.isFile()) out.push(full)
+			} catch {
+				/* ignore */
+			}
 		}
 	}
 	return out.sort((a, b) => path.basename(a).localeCompare(path.basename(b)))
@@ -240,11 +253,12 @@ export function isScreensaverZip(zipPath: string): boolean {
 	const hasShallowWebp = lowerNames.some((n) => n.endsWith('.webp') && (n.match(/\//g) ?? []).length <= 1)
 	if (hasShallowWebp) return true
 
-	// Master-GIF format: shallow `.gif` files whose names match Elgato's deck-model naming
-	// (e.g. `Pac_Man_MK_2.gif`, `Pac_Man_XL_2.gif`). Avoids matching random GIF-containing zips.
+	// Master-GIF format: `.gif` files whose basenames match Elgato's deck-model naming
+	// (e.g. `Pac_Man_MK_2.gif`, `Pac_Man_XL_2.gif`). The deck-suffix regex is specific
+	// enough to Elgato's convention that we don't constrain by path depth — packs vary
+	// (root, `Gifs/`, or inside a wrapper folder like `Pac Man Animated Screensaver V2/Gifs/`).
 	const hasDeckNamedGif = lowerNames.some((n) => {
 		if (!n.endsWith('.gif')) return false
-		if ((n.match(/\//g) ?? []).length > 1) return false
 		const base = n.split('/').pop() ?? n
 		return /(^|[_\-\s])(mk[_\-\s]?2|xl|sd[_\-\s]?plus|sd[_\-\s]?mini)($|[_\-\s\.])/i.test(base)
 	})
@@ -267,23 +281,59 @@ export async function installScreensaverFromZip(
 	const dest = path.join(libraryPath, safeName)
 	await mkdir(dest, { recursive: true })
 
+	const shouldSkip = (entryName: string): boolean => {
+		const lower = entryName.toLowerCase()
+		if (lower.endsWith('.streamdeckprofile')) return true
+		if (lower.includes('__macosx')) return true
+		return false
+	}
+
+	const normalizedPaths: string[] = []
 	for (const entry of zip.getEntries()) {
 		if (entry.isDirectory) continue
-		const lower = entry.entryName.toLowerCase()
-		// Only extract files that are useful: GIFs, WebP, PNG (icon), and JSON metadata.
-		// Skip the heavy .streamDeckProfile binaries.
-		if (lower.endsWith('.streamdeckprofile')) continue
-		if (lower.includes('__macosx')) continue
-
+		if (shouldSkip(entry.entryName)) continue
 		const safeEntryPath = entry.entryName.replace(/\\/g, '/').split('/').filter(Boolean).join('/')
 		if (!safeEntryPath) continue
-		const outPath = path.join(dest, safeEntryPath)
+		normalizedPaths.push(safeEntryPath)
+	}
+
+	// Detect a common top-level wrapper folder (e.g. `Pac Man Animated Screensaver V2/`)
+	// and strip it during extraction so files don't land one level too deep.
+	const prefix = commonTopLevelFolder(normalizedPaths)
+
+	for (const entry of zip.getEntries()) {
+		if (entry.isDirectory) continue
+		if (shouldSkip(entry.entryName)) continue
+		const safeEntryPath = entry.entryName.replace(/\\/g, '/').split('/').filter(Boolean).join('/')
+		if (!safeEntryPath) continue
+		const stripped = prefix && safeEntryPath.startsWith(prefix) ? safeEntryPath.slice(prefix.length) : safeEntryPath
+		if (!stripped) continue
+		const outPath = path.join(dest, stripped)
 		const outDir = path.dirname(outPath)
 		await mkdir(outDir, { recursive: true })
 		await writeFile(outPath, entry.getData())
 	}
 
 	return { installedTo: dest, screensaverId: safeName }
+}
+
+/**
+ * If every path in `paths` starts with the same top-level folder, return that
+ * folder name including the trailing `/`. Otherwise return `''`. Used to strip
+ * a single wrapper folder during zip extraction so files don't land one level
+ * too deep.
+ */
+export function commonTopLevelFolder(paths: string[]): string {
+	if (paths.length === 0) return ''
+	let prefix: string | null = null
+	for (const p of paths) {
+		const slash = p.indexOf('/')
+		if (slash < 0) return ''
+		const top = p.slice(0, slash + 1)
+		if (prefix === null) prefix = top
+		else if (prefix !== top) return ''
+	}
+	return prefix ?? ''
 }
 
 export function sanitizeFolderName(name: string): string {
