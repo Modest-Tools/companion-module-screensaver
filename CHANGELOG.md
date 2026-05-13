@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2 — 2026-05-13
+
+### Fixed
+- **`Start screensaver` / `Stop screensaver` actions intermittently timed out from the host's side** (`Module: Error executing action: Call timed out`) and the screensaver only fired on the deck *sometimes*. The tile-refresh interval was running at 15 fps continuously from module init — even when the screensaver wasn't active — shipping ~225 tile-buffer IPC messages per second to Companion's host. That starved the action-reply queue and the action ack would miss the host's ~7-second timeout window. The tile ticker now only runs while `this.active` is true: started in `startScreensaver()`, stopped in `stopScreensaver()`. Idle-state tile buttons keep showing the last sliced frame (the one-shot `refreshMasterFrame()` at load populates the initial frame, so buttons aren't blank on the screensaver page before activation).
+
 ## 0.6.1 — 2026-05-12
 
 ### Fixed

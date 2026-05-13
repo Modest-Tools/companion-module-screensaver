@@ -479,7 +479,12 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		this.incomingScanInterval = setInterval(() => {
 			void this.scanIncomingZips()
 		}, 30_000)
-		this.startTileTicker()
+		// Tile ticker only runs while the screensaver is active — see
+		// startScreensaver / stopScreensaver. Ticking at 15 fps while idle was
+		// shipping ~225 tile-buffer IPC messages per second to Companion's
+		// host, starving the action-reply queue and causing Start/Stop action
+		// callbacks to time out from the host's side.
+		if (this.active) this.startTileTicker()
 	}
 
 	private startTileTicker(): void {
@@ -498,6 +503,11 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 				this.checkFeedbacks('screensaver_tile')
 			}, periodMs)
 		}
+	}
+
+	private stopTileTicker(): void {
+		if (this.tileInterval) clearInterval(this.tileInterval)
+		this.tileInterval = null
 	}
 
 	private clearAllTimers(): void {
@@ -569,6 +579,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		}
 		this.log('info', `Starting screensaver (${reason})`)
 		this.setVariableValues({ screensaver_active: '1' })
+		this.startTileTicker()
 		this.checkFeedbacks('screensaver_active', 'screensaver_tile')
 	}
 
@@ -577,6 +588,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		this.active = false
 		this.log('info', `Stopping screensaver (${reason})`)
 		this.setVariableValues({ screensaver_active: '0' })
+		this.stopTileTicker()
 		this.checkFeedbacks('screensaver_active', 'screensaver_idle_warning', 'screensaver_tile')
 	}
 }
