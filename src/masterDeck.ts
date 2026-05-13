@@ -25,7 +25,9 @@ export type MasterDeck = {
 	getFrameRgba(idx: number): Promise<Uint8Array>
 }
 
-export const MAX_TILE_DIM = 96
+/** Stream Deck MK.2 keys are 72×72 native pixels. 96 was slightly oversampled
+ * and inflated per-tile IPC payload by ~44% with no visible benefit. */
+export const MAX_TILE_DIM = 72
 
 export function computeTileDims(width: number, height: number, gridCols: number, gridRows: number): {
 	srcTileWidth: number

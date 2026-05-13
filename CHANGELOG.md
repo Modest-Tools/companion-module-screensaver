@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.3 — 2026-05-13
+
+### Changed
+- **Tile downsample target dropped from 96 px → 72 px.** Matches Stream Deck MK.2's native button pixel count. Previously each tile was slightly oversampled, inflating per-frame IPC payload by ~44% with no visible benefit. Per-tile RGBA payload: 36 KB → 20 KB.
+- **Per-tile frame-diff.** The `screensaver_tile` feedback callback now compares each new tile to the last buffer shipped to Companion for that slot, returning `null` (skip the update) when they're byte-identical. For content with a static background (most logo loops) this skips 80%+ of the per-frame IPC payload. Comparison is `Buffer.equals` (native byte compare, microseconds per tile).
+
+### Notes
+- Combined effect: throughput for a typical logo-loop screensaver drops from ~13.5 MB/s @ 25 fps to ~1.5 MB/s — roughly 9×. Should make 20-25 fps viable on machines where 15 fps was previously the ceiling.
+
 ## 0.6.2 — 2026-05-13
 
 ### Fixed

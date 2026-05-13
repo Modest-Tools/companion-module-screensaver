@@ -72,6 +72,10 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 	private masterTiles: Map<number, Buffer> | null = null
 	private masterFrameIdx = -1
 	private masterDecodeInFlight = false
+	/** Last tile buffer shipped to Companion per slot, used to skip identical
+	 * tiles on subsequent frames. For content with a static background (most
+	 * logo loops) this cuts per-tick IPC payload by 5-10×. */
+	private shippedTiles: Map<number, Buffer> = new Map()
 	private tileLoadStartedAt = 0
 	private library: InstalledScreensaver[] = []
 	private failedAutoInstalls = new Set<string>()
@@ -315,6 +319,7 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		this.master = null
 		this.masterTiles = null
 		this.masterFrameIdx = -1
+		this.shippedTiles.clear()
 
 		const legacy = this.config.tileFolder?.trim()
 		if (legacy) {
@@ -455,6 +460,11 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		if (this.master && this.masterTiles) {
 			const buf = this.masterTiles.get(slot)
 			if (!buf) return null
+			// Frame-diff: if this tile is byte-identical to the last one we
+			// shipped for this slot, return null so Companion skips the update.
+			const last = this.shippedTiles.get(slot)
+			if (last && last.equals(buf)) return null
+			this.shippedTiles.set(slot, buf)
 			return {
 				imageBuffer: buf,
 				imageBufferEncoding: { pixelFormat: 'RGBA' },
