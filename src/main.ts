@@ -590,6 +590,17 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		this.log('info', `Stopping screensaver (${reason})`)
 		this.setVariableValues({ screensaver_active: '0' })
 		this.stopTileTicker()
+		// Drop the current sliced frame + shipped-tile cache. The host may
+		// still have queued `screensaver_tile` feedback re-evaluations from
+		// the last tile-tick before we stopped — for heavy content like Matrix
+		// Code that queue grows the whole time the screensaver runs and would
+		// drain into a fast-forward burst on the deck right as we're trying to
+		// switch pages. With masterTiles=null, those backlogged callbacks
+		// return null from getTileImageBuffer → Companion treats it as "no
+		// update" → button keeps its last image. The next activation's first
+		// tick repopulates from scratch.
+		this.masterTiles = null
+		this.shippedTiles.clear()
 		this.checkFeedbacks('screensaver_active', 'screensaver_idle_warning', 'screensaver_tile')
 	}
 }

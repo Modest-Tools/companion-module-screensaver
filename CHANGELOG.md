@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 — 2026-05-13
+
+### Fixed
+- **Fast-forward burst when dismissing the screensaver on heavy content** (Matrix Code and similar). Each tile-tick fired a `checkFeedbacks('screensaver_tile')` which queues 15 feedback re-evaluations on Companion's host. For content that the host can't drain at 225 evals/sec, the queue grew the entire time the screensaver ran. On dismiss the queue kept draining — each backlog item pulled the latest decoded frame from `masterTiles` and shipped it to the deck, looking like a fast-forward burst proportional to how long the screensaver had been running. `stopScreensaver` now clears `masterTiles` and `shippedTiles` so backlogged callbacks return null → Companion treats it as "no update" → deck retains its last frame and switches pages cleanly. Next activation's first tick repopulates from scratch.
+
 ## 0.7.0 — 2026-05-13
 
 ### Changed
