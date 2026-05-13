@@ -1,6 +1,6 @@
 {
 	"name": "companion-module-screensaver",
-	"version": "0.6.3",
+	"version": "0.7.0",
 	"main": "dist/main.js",
 	"type": "module",
 	"scripts": {

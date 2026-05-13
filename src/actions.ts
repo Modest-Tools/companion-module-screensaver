@@ -43,8 +43,7 @@ export function UpdateActions(self: ModuleInstance): void {
 		},
 		install_screensaver_zip: {
 			name: 'Install screensaver from zip',
-			description:
-				'Extracts an Elgato Stream Deck screensaver .zip into your library folder. Pad GIFs go in subfolders by deck size (SD Mini / SD Standard / SD XL / SD Plus). Tip: zips dropped in the "Incoming zip folder" are auto-installed in the background — this action is for one-off paths or re-installs.',
+			description: 'Extract an Elgato Marketplace .zip into your library. Tip: dropping a zip in your Incoming folder auto-installs it within 30s — this action is for one-off paths or re-installs.',
 			options: [
 				{
 					id: 'zipFile',
@@ -52,19 +51,21 @@ export function UpdateActions(self: ModuleInstance): void {
 					label: 'Incoming zip',
 					default: '',
 					choices: zipChoices,
-					tooltip: 'Pick a .zip from the connection\'s "Incoming zip folder" — refreshed every ~30 seconds.',
+					tooltip: 'Pick a .zip from your Incoming folder (refreshed every ~30s).',
 				},
 				{
 					id: 'zipPath',
 					type: 'textinput',
-					label: 'Or paste a full path to a .zip (used only if no incoming zip is picked above)',
+					label: 'Or paste a path to a .zip',
 					default: '',
+					tooltip: 'Used only if no Incoming zip is selected above. Accepts ~/ and absolute paths.',
 				},
 				{
 					id: 'displayName',
 					type: 'textinput',
-					label: 'Display name (optional, defaults to zip filename)',
+					label: 'Display name (optional)',
 					default: '',
+					tooltip: 'Defaults to the zip filename if blank.',
 				},
 			],
 			callback: async (event) => {
@@ -81,15 +82,15 @@ export function UpdateActions(self: ModuleInstance): void {
 			},
 		},
 		generate_setup_file: {
-			name: 'Generate page setup file (.companionconfig)',
-			description:
-				'Writes a .companionconfig file containing all billboard buttons (one per slot). After running, go to Settings → Import / Export → Import in Companion and pick this file.',
+			name: 'Generate page setup file',
+			description: 'Write a .companionconfig with the screensaver page (all tile buttons) and triggers. Import via Settings → Import / Export → Import.',
 			options: [
 				{
 					id: 'outputPath',
 					type: 'textinput',
 					label: 'Output path',
 					default: '~/Downloads/screensaver-setup.companionconfig',
+					tooltip: 'Where to write the .companionconfig file. Accepts ~/ and absolute paths.',
 				},
 			],
 			callback: async (event) => {

@@ -131,7 +131,6 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 			this.updateActions()
 		}
 		const tileSourceChanged =
-			this.config.tileFolder !== old?.tileFolder ||
 			this.config.screensaverId !== old?.screensaverId ||
 			this.config.deckSize !== old?.deckSize
 		if (tileSourceChanged) {
@@ -171,7 +170,6 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 			gridCols: Number(c.gridCols ?? gridFromDeck.cols),
 			gridRows: Number(c.gridRows ?? gridFromDeck.rows),
 			tileFps: Number(c.tileFps ?? 15),
-			tileFolder: String(c.tileFolder ?? ''),
 		}
 	}
 
@@ -248,6 +246,10 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		if (newlyInstalled > 0) {
 			await this.refreshLibrary()
 			this.updateActions()
+			this.log(
+				'info',
+				`Auto-installed ${newlyInstalled} screensaver(s). Pick one from the connection's "Active screensaver" dropdown.`,
+			)
 		}
 	}
 
@@ -320,12 +322,6 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 		this.masterTiles = null
 		this.masterFrameIdx = -1
 		this.shippedTiles.clear()
-
-		const legacy = this.config.tileFolder?.trim()
-		if (legacy) {
-			await this.loadTilesFolderInto(legacy)
-			return
-		}
 
 		const ss = this.resolveActiveScreensaver()
 		if (!ss) return
@@ -437,11 +433,6 @@ class ScreensaverInstance extends InstanceBase<ModuleSchema> {
 					}
 				}
 			}
-
-			lines.push(
-				``,
-				`After ${this.config.idleMinutes} minutes of inactivity the deck will switch to page ${t} and play the screensaver. Any button press will exit and return to page ${r}.`,
-			)
 
 			this.log('info', lines.join('\n'))
 		} catch (err) {

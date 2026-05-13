@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-05-13
+
+### Changed
+- **Config UI streamlined.** Dropped the three header static-text blocks and the verbose About paragraph in favor of a single setup hint at the top + tighter per-field tooltips. Field order reorganised so deck size and active screensaver appear next to each other (the two most-touched fields).
+- **Action descriptions tightened.** `Install screensaver from zip` and `Generate page setup file` now have one-sentence descriptions; details moved to per-field tooltips.
+- **README rewritten.** Quick-start now leads with the auto-install watcher (drop zip in `~/Downloads`) instead of the bind-to-temp-button manual flow. Reference tables for actions/feedbacks/variables retained.
+- **Auto-install hint surfaced.** When zips are auto-installed in the background, the log now points users at the "Active screensaver" dropdown.
+
+### Removed
+- **Legacy `tileFolder` config field.** This was a v0.1-era escape hatch for pointing the renderer directly at a folder of tile GIFs without using the library. Marked `@deprecated` since v0.4.0 and superseded by the library workflow. Removing it cleans up one confusing knob in the connection settings. Connections that had a value set just ignore it now.
+
 ## 0.6.3 — 2026-05-13
 
 ### Changed

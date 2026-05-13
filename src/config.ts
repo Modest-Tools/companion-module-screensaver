@@ -14,8 +14,6 @@ export type ModuleConfig = {
 	gridCols: number
 	gridRows: number
 	tileFps: number
-	/** @deprecated Legacy: raw tile folder path. If set, overrides library + screensaverId. */
-	tileFolder: string
 }
 
 export type ConfigContext = {
@@ -31,17 +29,9 @@ export function GetConfigFields(ctx: ConfigContext = { availableScreensavers: []
 		{
 			type: 'static-text',
 			id: 'info',
-			label: 'About this module',
+			label: 'Setup',
 			width: 12,
-			value:
-				'Plays Elgato Marketplace screensavers across your Stream Deck after an idle period. Three steps to set up: (1) configure the pages and library below, (2) run the "Install screensaver from zip" action to import an Elgato pack, (3) run the "Generate page setup file" action and import the resulting .companionconfig in Settings → Import.',
-		},
-		{
-			type: 'static-text',
-			id: 'pagesHeader',
-			label: '1. Pages & timing',
-			width: 12,
-			value: 'Pick how long to wait before the screensaver kicks in, which page to take over, and which page to return to when it exits.',
+			value: 'Drop an Elgato Marketplace screensaver .zip into your Incoming folder (default ~/Downloads). It auto-installs within 30s. Pick it from "Active screensaver" below, then run the "Generate page setup file" action and import the resulting .companionconfig via Settings → Import.',
 		},
 		{
 			type: 'number',
@@ -55,59 +45,27 @@ export function GetConfigFields(ctx: ConfigContext = { availableScreensavers: []
 		{
 			type: 'number',
 			id: 'targetPage',
-			label: 'Screensaver page (taken over while active)',
+			label: 'Screensaver page',
 			width: 4,
 			min: 1,
 			max: 99,
 			default: 99,
+			tooltip: 'The page the screensaver takes over while active. Default 99 keeps it out of your main pages.',
 		},
 		{
 			type: 'number',
 			id: 'returnPage',
-			label: 'Return page (switch back here when exiting)',
+			label: 'Return page',
 			width: 4,
 			min: 1,
 			max: 99,
 			default: 1,
-		},
-		{
-			type: 'textinput',
-			id: 'surfaceIds',
-			label: 'Stream Deck surface IDs (comma-separated)',
-			width: 12,
-			default: '',
-			tooltip:
-				'Find these in Companion → Surfaces (e.g. "streamdeck:A00SA4442O4IRG"). When set, the generated .companionconfig will include ready-to-go page-switch triggers for each listed surface. Leave blank to add those triggers manually.',
-		},
-		{
-			type: 'static-text',
-			id: 'libraryHeader',
-			label: '2. Screensaver library',
-			width: 12,
-			value:
-				'The library is a folder of installed screensavers. Download a `.zip` from the Elgato Marketplace (https://marketplace.elgato.com → Stream Deck → Screensavers), save it anywhere you like, then trigger the "Install screensaver from zip" action with that path. The module unpacks it into the library folder below — pick it from the "Active screensaver" dropdown afterwards.',
-		},
-		{
-			type: 'textinput',
-			id: 'screensaverLibraryPath',
-			label: 'Library folder path (auto-created if missing)',
-			width: 8,
-			default: '',
-			tooltip: 'Default: ~/Documents/CompanionScreensavers',
-		},
-		{
-			type: 'textinput',
-			id: 'incomingZipFolder',
-			label: 'Incoming zip folder (auto-installed in the background)',
-			width: 12,
-			default: '~/Downloads',
-			tooltip:
-				'Drop Elgato Marketplace .zip files here and they will be auto-installed within ~30s. The "Install screensaver from zip" action also pulls its dropdown of choices from this folder.',
+			tooltip: 'The page to switch back to when the screensaver exits.',
 		},
 		{
 			type: 'dropdown',
 			id: 'deckSize',
-			label: 'Deck size (controls which tile resolution is loaded)',
+			label: 'Deck size',
 			width: 4,
 			default: 'standard',
 			choices: [
@@ -121,33 +79,44 @@ export function GetConfigFields(ctx: ConfigContext = { availableScreensavers: []
 			type: 'dropdown',
 			id: 'screensaverId',
 			label: 'Active screensaver',
-			width: 12,
+			width: 8,
 			default: '',
 			choices: screensaverChoices,
-			tooltip: 'Empty until you install at least one screensaver via the "Install screensaver from zip" action',
+			tooltip: 'Empty until you install at least one screensaver — drop a .zip in the Incoming folder or use the "Install screensaver from zip" action.',
 		},
 		{
-			type: 'static-text',
-			id: 'advancedHeader',
-			label: '3. Advanced',
+			type: 'textinput',
+			id: 'surfaceIds',
+			label: 'Stream Deck surface IDs',
 			width: 12,
-			value: 'Most users can ignore these. Animation FPS controls refresh rate — lower if you see stutter on slower machines. Legacy tile folder path is for direct-folder use if you don\'t want the library workflow.',
+			default: '',
+			tooltip: 'Optional. Comma-separated list (find in Companion → Surfaces, e.g. "streamdeck:A00SA4442O4IRG"). When set, the generated .companionconfig auto-embeds page-switch triggers for these decks.',
+		},
+		{
+			type: 'textinput',
+			id: 'incomingZipFolder',
+			label: 'Incoming zip folder (auto-install watcher)',
+			width: 6,
+			default: '~/Downloads',
+			tooltip: 'Elgato Marketplace .zip files dropped here are auto-installed within ~30s.',
+		},
+		{
+			type: 'textinput',
+			id: 'screensaverLibraryPath',
+			label: 'Library folder',
+			width: 6,
+			default: '',
+			tooltip: 'Where installed screensavers live. Default: ~/Documents/CompanionScreensavers (auto-created).',
 		},
 		{
 			type: 'number',
 			id: 'tileFps',
-			label: 'Animation FPS (refresh rate cap)',
+			label: 'Animation FPS',
 			width: 6,
 			min: 1,
 			max: 30,
 			default: 15,
-		},
-		{
-			type: 'textinput',
-			id: 'tileFolder',
-			label: 'Legacy: raw tile folder path (overrides library + active screensaver if set)',
-			width: 12,
-			default: '',
+			tooltip: 'Stream Deck USB pipe caps around 30 fps regardless. Lower if you see action timeouts in the log.',
 		},
 	]
 }
